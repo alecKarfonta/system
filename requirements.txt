@@ -18,6 +18,28 @@ matplotlib
 #deepspeed
 #accelerate
 
+# Text to speech
+#fairseq
+#speechbrain
+
+
+# NLP
+#stanza
+mpld3
+nltk
+
+# Deep learning
+#tensorflow 
+#keras 
+#h5py 
+#keras-rl
+#baselines
+#tensorforce
+
+# AI Gym requirements
+#PyOpenGL
+#piglet
+
 # Other
 JSAnimation
 ipywidgets
