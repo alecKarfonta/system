@@ -34,7 +34,7 @@ sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
 sudo systemctl restart docker
 
 # Check Docker image
-docker run --gpus all nvidia/cuda:10.0-base nvidia-smi
+docker run --gpus all nvidia/cuda:12.3.2-devel-ubi8 nvidia-smi
 
 ## Erase all Docker images [!!! CAUTION !!!]
 # docker rmi -f $(docker images -a -q)
@@ -49,6 +49,12 @@ docker run --gpus all nvidia/cuda:10.0-base nvidia-smi
 #    -e DISPLAY=$DISPLAY \
 #    -v /tmp/.X11-unix:/tmp/.X11-unix \
 #    nathzi1505:darknet bash
+
+# Docker compose
+
+sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+docker-compose --version
 
 
 sudo apt-get install mlocate
@@ -118,3 +124,9 @@ echo "deb https://download.sublimetext.com/ apt/stable/" | sudo tee /etc/apt/sou
 
 sudo apt-get update
 sudo apt-get install sublime-text
+
+
+
+# Rip grep
+# Source: https://github.com/BurntSushi/ripgrep?tab=readme-ov-file#installation
+brew install ripgrep

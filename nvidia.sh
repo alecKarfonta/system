@@ -8,7 +8,9 @@ sudo apt-get remove --purge '^cuda-.*'
 # sudo apt-get install linux-{headers,image,image-extra}-$(uname -r) build-essential
 sudo apt-get install linux-headers-$(uname -r)
 
-$sudo update-initramfs -u
+sudo apt install build-essential
+
+sudo update-initramfs -u
 
 # Get cuda
 # Source: https://docs.nvidia.com/cuda/cuda-installation-guide-linux/#meta-packages

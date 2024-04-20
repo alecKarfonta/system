@@ -1,5 +1,9 @@
 # Build api image
-sudo docker build --tag py:1.0 . -f /home/alec/git/talker/Dockerfile_pytorch_2.sh
+sudo docker build --tag py:1.0 . -f /home/alec/git/system/system/docker/Dockerfile_pytorch_2
+
+
+sudo docker build --tag py:1.0 . -f /home/alec/git/system/system/docker/Dockerfile_pytorch_2
+
 
 sudo nvidia-docker run -ti --rm --publish 8888:8888 -p 5900:5900 -v /home/alec/git:/py/ -w /py py:1.2
 
@@ -11,29 +15,29 @@ sudo docker run --gpus all \
         --rm --publish 8888:8888 -p 5900:5900 -v /home/alec/git:/py/ -w /py py:1.0
 
 # Start dev container
-docker run --rm \
+sudo docker run --rm \
         --name dev \
         --gpus all \
         --ipc=host \
         --ulimit memlock=-1 \
         --ulimit stack=67108864 \
-        --publish 8100:8100 \
+        --publish 8888:8888 \
         -v /home/alec/git:/py/ \
         -w /py \
         -it \
         py:1.0
 
 # Start TTS container
-docker run --rm \
+sudo docker run --rm \
     --name reader \
     --gpus all \
     --ipc=host \
     --ulimit memlock=-1 \
     --ulimit stack=67108864 \
-    --publish 8888:8888 \
+    --publish 8100:8100 \
     -w /app \
     --entrypoint /bin/bash \
-    -e BM_TO_TTS_REDIS_HOST="192.168.1.75" \
+    -e BM_TO_TTS_REDIS_HOST="localhost" \
     -it \
     reader
 

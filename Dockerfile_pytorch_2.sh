@@ -108,7 +108,7 @@ COPY --from=build /opt/conda /opt/conda
 COPY custom/ /root/.jupyter/
 
 # Enable Jupyter widgets
-RUN jupyter nbextension enable --py --sys-prefix widgetsnbextension
+#RUN jupyter nbextension enable --py --sys-prefix widgetsnbextension
 
 # TODO: Generate notebook config
 
@@ -127,14 +127,14 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 
 # Install ML libs
 RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-RUN pip install deepspeed
-RUN pip install bitsandbytes
+#RUN pip install deepspeed
+#RUN pip install bitsandbytes
 RUN pip install safetensors
 RUN pip install tokenizers
-RUN pip install --upgrade --no-deps --force-reinstall -U huggingface_hub
-RUN pip install --upgrade --no-deps --force-reinstall -U git+https://github.com/huggingface/transformers.git
-RUN pip install  --upgrade --no-deps --force-reinstall -U git+https://github.com/huggingface/peft.git 
-RUN pip install  --upgrade --no-deps --force-reinstall -U git+https://github.com/huggingface/accelerate.git
+#RUN pip install --upgrade --no-deps --force-reinstall -U huggingface_hub
+#RUN pip install --upgrade --no-deps --force-reinstall -U git+https://github.com/huggingface/transformers.git
+#RUN pip install  --upgrade --no-deps --force-reinstall -U git+https://github.com/huggingface/peft.git 
+#RUN pip install  --upgrade --no-deps --force-reinstall -U git+https://github.com/huggingface/accelerate.git
 
 #RUN pip install jupyter_contrib_nbextensions
 #RUN jupyter contrib nbextension install --sys-prefix
