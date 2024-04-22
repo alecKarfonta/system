@@ -1,11 +1,12 @@
 # Build api image
-sudo docker build --tag py:1.0 . -f /home/alec/git/system/system/docker/Dockerfile_pytorch_2
-
-
-sudo docker build --tag py:1.0 . -f /home/alec/git/system/system/docker/Dockerfile_pytorch_2
-
+sudo docker build --tag py:1.0 . -f /home/alec/git/talker/Dockerfile_pytorch_2.sh
 
 sudo nvidia-docker run -ti --rm --publish 8888:8888 -p 5900:5900 -v /home/alec/git:/py/ -w /py py:1.2
+
+
+sudo docker build --tag dev:1.0 . -f /home/alec/git/system/system/docker/Dockerfile_pytorch_2
+
+
 
 sudo docker run --gpus all \
         --ipc=host \
@@ -15,7 +16,7 @@ sudo docker run --gpus all \
         --rm --publish 8888:8888 -p 5900:5900 -v /home/alec/git:/py/ -w /py py:1.0
 
 # Start dev container
-sudo docker run --rm \
+docker run --rm \
         --name dev \
         --gpus all \
         --ipc=host \
@@ -25,10 +26,13 @@ sudo docker run --rm \
         -v /home/alec/git:/py/ \
         -w /py \
         -it \
-        py:1.0
+        dev:1.0
+
+
+sudo docker build --tag reader:1.0 . 
 
 # Start TTS container
-sudo docker run --rm \
+docker run --rm \
     --name reader \
     --gpus all \
     --ipc=host \
@@ -37,10 +41,13 @@ sudo docker run --rm \
     --publish 8100:8100 \
     -w /app \
     --entrypoint /bin/bash \
-    -e BM_TO_TTS_REDIS_HOST="localhost" \
+    -e BM_TO_TTS_REDIS_HOST="192.168.1.75" \
     -it \
     reader
 
+sudo docker cp main.py 3c78a400afc1:/app/main.py
+sudo docker cp voicebox.py 3c78a400afc1:/app/voicebox.py
+sudo docker cp voicebox_config.json 3c78a400afc1:/app/voicebox_config.json
 
 # -ti - Interactive terminal with container
 

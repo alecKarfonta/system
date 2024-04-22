@@ -6,7 +6,7 @@ sudo apt-get remove --purge '^cuda-.*'
 # Install build essentials
 # OLD
 # sudo apt-get install linux-{headers,image,image-extra}-$(uname -r) build-essential
-sudo apt-get install linux-headers-$(uname -r)
+sudo apt install linux-headers-$(uname -r)
 
 sudo apt install build-essential
 
@@ -15,7 +15,7 @@ sudo update-initramfs -u
 # Get cuda
 # Source: https://docs.nvidia.com/cuda/cuda-installation-guide-linux/#meta-packages
 # Remove old key
-sudo apt-key del 7fa2af80
+#sudo apt-key del 7fa2af80
 
 # Ubuntu 20.04
 #wget https://developer.download.nvidia.com/compute/cuda/12.3.1/local_installers/cuda_12.3.1_545.23.08_linux.run
@@ -30,9 +30,19 @@ sudo sh cuda_12.3.1_545.23.08_linux.run
 # Check available version
 apt search nvidia
 
-sudo apt install libnvidia-common-<version>
-sudo apt install libnvidia-gl-<version>
-sudo apt install nvidia-driver-<version>
+#sudo apt install libnvidia-common-<version>
+#sudo apt install libnvidia-gl-<version>
+#sudo apt install nvidia-driver-<version>
+
+sudo apt install libnvidia-common-525
+sudo apt install libnvidia-gl-525
+sudo apt install nvidia-driver-525
+
+
+sudo apt install libnvidia-common-525
+sudo apt install libnvidia-gl-525
+sudo apt install nvidia-driver-525
+
 
 # If you run into issues with driver not installing or starting disable secure boot
 
