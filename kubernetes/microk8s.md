@@ -186,6 +186,17 @@ kubectl describe pods --all-namespaces
 kubectl get pods --field-selector=status.phase==Running --all-namespaces
 ```
 
+**Show Kubeflow pods**
+```bash
+microk8s kubectl get po -n kubeflow
+```
+
+**Show pod logs*
+```bash
+microk8s kubectl logs -n kubeflow
+```
+
+
 # Namespaces
 
 ## Show namesspaces
