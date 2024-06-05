@@ -52,6 +52,7 @@ sudo docker cp voicebox_config.json 3c78a400afc1:/app/voicebox_config.json
 # -ti - Interactive terminal with container
 
 
+
 # Build api image
 sudo docker build --tag api:1.0 . -f /home/alec/git/talker/Dockerfile_api.sh
 # Run api
@@ -77,3 +78,19 @@ sudo docker exec -it d83f99005dfd bash
 
 # Save container
 sudo docker commit d83f99005dfd py:1.0
+
+
+
+
+
+
+
+sudo docker build --tag chatui:1.0 . 
+
+sudo docker run -it \
+        -p 8200:8000 \
+        -e RAFT_LLM_SERVICE_HOST="raft-llm-service" \
+        -e RAFT_LLM_SERVICE_PORT="8000" \
+        -e DISABLE_TRINO="true" \
+        -e CHAT_WITH_DATA_AGENT="simple_raft_qa" \
+        chatui:1.0 /bin/bash

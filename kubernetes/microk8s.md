@@ -197,6 +197,7 @@ microk8s kubectl logs -n kubeflow
 ```
 
 
+
 # Namespaces
 
 ## Show namesspaces
