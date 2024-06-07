@@ -7,7 +7,7 @@ alias update='sudo apt update && sudo apt upgrade -y'
 alias cleanup='sudo apt autoremove -y && sudo apt autoclean -y'
 
 # Alias to monitor system resources
-alias sysmon='htop'
+alias sys='btop'
 #### \System ####
 
 
@@ -130,6 +130,7 @@ alias k-secrets=kubectl get secrets
 alias k-events=kubectl get events
 alias k-warn=kubectl get events --field-selector type=Warning
 alias k-error=kubectl get events --field-selector type=Error
+alias kpods=kubectl get pods --all-namespaces
 #### \Kubernetes ####
 
 
