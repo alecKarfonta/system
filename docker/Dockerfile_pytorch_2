@@ -1,0 +1,162 @@
+FROM pytorch/pytorch:2.2.0-cuda11.8-cudnn8-devel
+
+
+ARG PYTHON_VERS
+ENV HOME "/root"
+ENV CONDA_DIR "${HOME}/miniconda"
+ENV PATH="$CONDA_DIR/bin":$PATH
+ENV CONDA_AUTO_UPDATE_CONDA=false
+ENV PIP_DOWNLOAD_CACHE="$HOME/.pip/cache"
+ENV TORTOISE_MODELS_DIR="$HOME/tortoise-tts/build/lib/tortoise/models"
+FROM pytorch/pytorch:2.2.0-cuda11.8-cudnn8-devel
+
+
+ARG PYTHON_VERS
+ENV HOME "/root"
+ENV CONDA_DIR "${HOME}/miniconda"
+ENV PATH="$CONDA_DIR/bin":$PATH
+ENV CONDA_AUTO_UPDATE_CONDA=false
+ENV PIP_DOWNLOAD_CACHE="$HOME/.pip/cache"
+ENV TORTOISE_MODELS_DIR="$HOME/tortoise-tts/build/lib/tortoise/models"
+
+
+# Automatically set by buildx
+ARG TARGETPLATFORM
+
+# Remove any third-party apt sources to avoid issues with expiring keys.
+RUN rm -f /etc/apt/sources.list.d/*.list
+
+RUN apt-get update && \
+    apt-get install -y --allow-unauthenticated --no-install-recommends \
+    wget \
+    git \
+    && apt-get autoremove -y \
+    && apt-get clean -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install some basic utilities.
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    sudo \
+    git \
+    bzip2 \
+    libx11-6 \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update \
+    && apt-get install -y build-essential \
+    && apt-get install -y mlocate \
+    && apt-get install -y nano \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install conda
+
+# Remove any third-party apt sources to avoid issues with expiring keys.
+RUN rm -f /etc/apt/sources.list.d/*.list
+
+RUN apt-get update && \
+    apt-get install -y --allow-unauthenticated --no-install-recommends \
+    wget \
+    git \
+    && apt-get autoremove -y \
+    && apt-get clean -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install some basic utilities.
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    sudo \
+    git \
+    bzip2 \
+    libx11-6 \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update \
+    && apt-get install -y build-essential \
+    && apt-get install -y mlocate \
+    && apt-get install -y nano \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install conda
+# translating Docker's TARGETPLATFORM into miniconda arches
+#RUN case ${TARGETPLATFORM} in \
+#         "linux/arm64")  MINICONDA_ARCH=aarch64  ;; \
+#         *)              MINICONDA_ARCH=x86_64   ;; \
+#    esac && \
+#    curl -fsSL -v -o ~/miniconda.sh -O  "https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-${MINICONDA_ARCH}.sh"
+
+#RUN case ${TARGETPLATFORM} in \
+#         "linux/arm64")  MINICONDA_ARCH=aarch64  ;; \
+#         *)              MINICONDA_ARCH=x86_64   ;; \
+#    esac && \
+#    curl -fsSL -v -o ~/miniconda.sh -O  "https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-${MINICONDA_ARCH}.sh"
+
+COPY requirements.txt .
+
+#ENV CONDA_DIR /opt/conda
+#RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh && \
+#    /bin/bash ~/miniconda.sh -b -p /opt/conda
+#ENV PATH=$CONDA_DIR/bin:$PATH
+
+
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda3.sh \
+    && bash /tmp/miniconda3.sh -b -p "${CONDA_DIR}" -f -u \
+    && "${CONDA_DIR}/bin/conda" init bash \
+    && rm -f /tmp/miniconda3.sh \
+    && echo ". '${CONDA_DIR}/etc/profile.d/conda.sh'" >> "${HOME}/.profile"
+
+
+#ENV CONDA_DIR /opt/conda
+#RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh && \
+#    /bin/bash ~/miniconda.sh -b -p /opt/conda
+#ENV PATH=$CONDA_DIR/bin:$PATH
+
+
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda3.sh \
+    && bash /tmp/miniconda3.sh -b -p "${CONDA_DIR}" -f -u \
+    && "${CONDA_DIR}/bin/conda" init bash \
+    && rm -f /tmp/miniconda3.sh \
+    && echo ". '${CONDA_DIR}/etc/profile.d/conda.sh'" >> "${HOME}/.profile"
+
+# Manually invoke bash on miniconda script per https://github.com/conda/conda/issues/10431
+#RUN chmod +x ~/miniconda.sh && \
+#    bash ~/miniconda.sh -b -p /opt/conda && \
+#    rm ~/miniconda.sh && \
+    #/opt/conda/bin/conda install -y python=${PYTHON_VERSION} cmake conda-build pyyaml numpy ipython && \
+#    /opt/conda/bin/python -mpip install -r requirements.txt && \
+#    /opt/conda/bin/conda clean -ya
+
+RUN pip install -r requirements.txt 
+
+# Create a working directory.
+#RUN mkdir /app
+#WORKDIR /app
+
+# Copy custom Jupyter config
+COPY custom/ /root/.jupyter/
+
+EXPOSE 8888
+
+SHELL ["/bin/bash", "--login", "-c"]
+#SHELL ["/bin/bash", "--login", "-c"]
+
+#RUN conda create --name tortoise python=3.9 numba inflect \
+#    && conda activate tortoise \
+#    && conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia \
+#    && conda install transformers=4.29.2 \
+#    && cd /app \
+#    && python setup.py install
+## Set the default command to python3.
+#CMD ["python3"]
+#RUN conda create --name tortoise python=3.9 numba inflect \
+#    && conda activate tortoise \
+#    && conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia \
+#    && conda install transformers=4.29.2 \
+#    && cd /app \
+#    && python setup.py install
+## Set the default command to python3.
+#CMD ["python3"]
