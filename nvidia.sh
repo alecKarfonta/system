@@ -26,7 +26,7 @@ wget https://developer.download.nvidia.com/compute/cuda/12.3.1/local_installers/
 sudo sh cuda_12.3.1_545.23.08_linux.run 
 
 # Install Nvidia Driver
-#sudo apt install nvidia-driver-535
+sudo apt install nvidia-driver-535
 # Check available version
 apt search nvidia
 
@@ -34,9 +34,9 @@ apt search nvidia
 #sudo apt install libnvidia-gl-<version>
 #sudo apt install nvidia-driver-<version>
 
-#sudo apt install libnvidia-common-525
-#sudo apt install libnvidia-gl-525
-#sudo apt install nvidia-driver-525
+sudo apt install libnvidia-common-535
+sudo apt install libnvidia-gl-535
+sudo apt install nvidia-driver-535
 
 
 sudo apt install libnvidia-common-525

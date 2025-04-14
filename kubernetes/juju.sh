@@ -22,3 +22,10 @@ juju destroy-model kubeflow --destroy-storage
 
 # If that doesn't work
 juju destroy-model kubeflow --destroy-storage --force
+
+
+# Show controllers
+juju controllers
+
+# Switch containers
+juju switch [CONTAINER_NAME]
