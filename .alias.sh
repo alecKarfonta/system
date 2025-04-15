@@ -8,6 +8,10 @@ alias cleanup='sudo apt autoremove -y && sudo apt autoclean -y'
 
 # Alias to monitor system resources
 alias sys='btop'
+
+# Stop OS front end
+#sudo service lightdm stop
+alias killg='sudo service gdm stop'
 #### \System ####
 
 
@@ -32,12 +36,14 @@ alias subx='sudo chmod -x'
 
 
 #### Docker ####
-alias ds='sudo docker stop'
-alias dlog='sudo docker logs -f'
-alias dps='sudo docker ps'
-alias dcb='sudo docker-compose up -d --build'
+alias ds='docker stop'
+alias dlog='docker logs -f'
+alias dps='docker ps'
+alias dcb='docker-compose up -d --build'
 # List all Docker containers
 alias dpsa='docker ps -a'
+alias dpsc='docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"'
+alias dbash='docker exec -it $1 bash'
 
 # Remove a Docker container
 alias drm='docker rm'

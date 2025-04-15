@@ -17,7 +17,7 @@ cat /root/.jupyter/jupyter_server_config.json
 #c.NotebookApp.keyfile = u'/app/mycert.pem'
 # Set ip to '*' to bind on all interfaces (ips) for the public server
 c.NotebookApp.ip = '*'
-c.NotebookApp.password = u''
+c.NotebookApp.password = u'argon2:$argon2id$v=19$m=10240,t=10,p=8$U/HMhEapI4TQZ20KF+nevA$LqR4/C7/WVo5nL0L44LGu/D0oILXNTx3Lrd/fI7tuRA'
 c.NotebookApp.open_browser = False
 
 # It is a good idea to set a known, fixed port for server access
