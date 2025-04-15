@@ -1,0 +1,51 @@
+#######################################################################################
+#
+# zplug - the all-in-one zshell plugin manager (https://github.com/zplug/zplug)
+#
+#######################################################################################
+
+export ZPLUG_HOME=/opt/homebrew/opt/zplug
+source $ZPLUG_HOME/init.zsh
+
+# -------------------------------------------------------------------------------------
+# declare plugins to load
+# -------------------------------------------------------------------------------------
+
+zplug "plugins/z",   from:oh-my-zsh
+zplug "plugins/git", from:oh-my-zsh
+zplug "wfxr/forgit", defer:1 # load after oh-my-zsh's git aliases to override some of them 
+
+zplug "zsh-users/zsh-autosuggestions"
+zplug "zsh-users/zsh-syntax-highlighting", defer:2
+
+# docker
+zplug "docker/cli", use:"contrib/completion/zsh"
+zplug "docker/compose", use:"contrib/completion/zsh"
+
+zplug "modules/directory",  from:prezto
+zplug "modules/completion", from:prezto
+
+# directory colors
+zplug "pinelibg/dircolors-solarized-zsh"
+
+# theme
+zplug "romkatv/powerlevel10k", as:theme, depth:1
+
+
+# -------------------------------------------------------------------------------------
+# load 
+# -------------------------------------------------------------------------------------
+
+# then, source plugins and add commands to $PATH
+zplug load
+
+
+# -------------------------------------------------------------------------------------
+# customizations 
+# -------------------------------------------------------------------------------------
+
+# reverse fzf so it lists things top-down
+export FORGIT_FZF_DEFAULT_OPTS=$FORGIT_FZF_DEFAULT_OPTS--reverse
+
+# override 'gl' (from plugins/git) to add --recurse-submodules
+alias gl='git pull --recurse-submodules'
