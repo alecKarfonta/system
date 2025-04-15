@@ -5,7 +5,7 @@
 # 2. Check for available GPUs and details
 # 3. Check NVIDIA driver version
 # 4. Check CUDA version and compatibility
-# 5. Setup Python environment and install vLLM
+# 5. Setup Python environment and install vLLM based on user preference
 # 6. Run a basic inference test with vLLM
 
 # Set up error handling
@@ -29,6 +29,41 @@ command_exists() {
 # Function to check if a package is installed
 package_installed() {
     dpkg -l "$1" >/dev/null 2>&1
+}
+
+# Function to install vLLM
+install_vllm() {
+    local install_method=$1
+    local version=$2
+    local branch=$3
+
+    case $install_method in
+        "pip")
+            echo -e "\n${YELLOW}Installing vLLM from pip (version: $version)...${NC}"
+            pip install "vllm==$version"
+            ;;
+        "source")
+            echo -e "\n${YELLOW}Installing vLLM from source...${NC}"
+            git clone https://github.com/vllm-project/vllm.git
+            cd vllm
+            if [ ! -z "$branch" ]; then
+                git checkout $branch
+            fi
+            pip install -e .
+            cd ..
+            ;;
+        "branch")
+            echo -e "\n${YELLOW}Installing vLLM from specific branch: $branch...${NC}"
+            git clone -b $branch https://github.com/vllm-project/vllm.git
+            cd vllm
+            pip install -e .
+            cd ..
+            ;;
+        *)
+            echo -e "${RED}Invalid installation method${NC}"
+            exit 1
+            ;;
+    esac
 }
 
 # 1. Check Ubuntu version and system info
@@ -104,7 +139,7 @@ python3 --version || echo "Python3 not found"
 # Install required packages if not already installed
 echo -e "\n${YELLOW}Installing required packages...${NC}"
 sudo apt-get update
-sudo apt-get install -y python3-pip python3-venv
+sudo apt-get install -y python3-pip python3-venv git
 
 # Create a virtual environment
 echo -e "\n${YELLOW}Creating Python virtual environment...${NC}"
@@ -117,19 +152,45 @@ python --version
 
 # Install PyTorch with CUDA support
 echo -e "\n${YELLOW}Installing PyTorch with CUDA support...${NC}"
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+#pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install --upgrade --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
 
 # Check PyTorch CUDA availability
 echo -e "\n${YELLOW}Checking PyTorch CUDA availability:${NC}"
 python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda}'); print(f'CUDA device count: {torch.cuda.device_count()}'); [print(f'CUDA device {i}: {torch.cuda.get_device_name(i)}') for i in range(torch.cuda.device_count())]"
 
-# Install vLLM
-echo -e "\n${YELLOW}Installing vLLM...${NC}"
-pip install vllm
+# Prompt user for installation method
+echo -e "\n${GREEN}=== vLLM Installation Options ===${NC}"
+echo -e "Choose installation method:"
+echo -e "1) Install from pip (with version)"
+echo -e "2) Install from source"
+echo -e "3) Install from specific branch"
+read -p "Enter your choice (1-3): " install_choice
+
+case $install_choice in
+    1)
+        read -p "Enter vLLM version (e.g., 0.2.0): " vllm_version
+        install_vllm "pip" "$vllm_version" ""
+        ;;
+    2)
+        install_vllm "source" "" ""
+        ;;
+    3)
+        read -p "Enter branch name (e.g., main, blackwell): " branch_name
+        install_vllm "branch" "" "$branch_name"
+        ;;
+    *)
+        echo -e "${RED}Invalid choice${NC}"
+        exit 1
+        ;;
+esac
 
 # Check vLLM installation
 echo -e "\n${YELLOW}Checking vLLM installation:${NC}"
 python -c "import vllm; print(f'vLLM version: {vllm.__version__}')"
+
+# Return to original directory
+cd ..
 
 # 6. Run a basic inference test
 echo -e "\n${GREEN}=== Basic vLLM Inference Test ===${NC}"
