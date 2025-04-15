@@ -55,7 +55,25 @@ sudo systemctl set-default multi-user.target
 sudo reboot
 ```
 
-### 5. Configure Git
+### 5. Install CUDA (if needed)
+If you need CUDA for GPU acceleration, follow these steps:
+
+```bash
+# Download and install CUDA repository key
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
+
+# Update package list and install CUDA
+sudo apt-get update
+sudo apt-get -y install cuda
+
+# Verify CUDA installation
+ls -la /usr/local/cuda* 2>/dev/null || echo "No CUDA directory found"
+nvidia-smi
+nvcc --version
+```
+
+### 6. Configure Git
 Set up your Git configuration:
 ```bash
 git config --global user.name "Your Name"
