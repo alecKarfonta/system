@@ -1,0 +1,40 @@
+# Example Environment Variables
+# Copy this file to .envs.sh and customize with your actual values
+
+# GitHub Configuration
+export GITHUB_TOKEN=your_github_personal_access_token_here
+export GITHUB_USERNAME=your_github_username
+
+# Data Fabric Configuration (if using)
+export DF_HOME=/path/to/your/data-fabric
+
+# Mapbox Token (for visualization)
+export MAPBOX_TOKEN=your_mapbox_token_here
+
+# Development Server Configuration
+export READER_HOST=localhost
+export READER_PORT=8100
+
+# CUDA Configuration
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_CACHE_DISABLE=1
+
+# vLLM Configuration
+export VLLM_WORKER_MULTIPROC_METHOD=spawn
+export VLLM_LOGGING_LEVEL=INFO
+
+# Docker Configuration  
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
+# Jupyter Configuration
+export JUPYTER_ENABLE_LAB=yes
+export JUPYTER_TOKEN=your_jupyter_token_here
+
+# Database Configuration
+export POSTGRES_DB=mldev
+export POSTGRES_USER=mldev
+export POSTGRES_PASSWORD=your_secure_password_here
+
+# DevPI Configuration
+export DEVPI_PASSWORD=your_devpi_password_here 

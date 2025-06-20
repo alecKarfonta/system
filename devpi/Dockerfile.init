@@ -1,0 +1,16 @@
+FROM python:3.9-slim
+
+# Create data directory
+RUN mkdir -p /data
+
+# Expose the default devpi port
+EXPOSE 3141
+
+RUN pip install devpi-client
+
+# Set data volume
+COPY packages /data/packages
+COPY init_cmds.sh /data/init_cmds.sh
+
+# Initialize and start devpi server
+CMD ["bash", "/data/init_cmds.sh"]

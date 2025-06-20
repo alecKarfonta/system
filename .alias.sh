@@ -39,7 +39,7 @@ alias subx='sudo chmod -x'
 alias ds='docker stop'
 alias dlog='docker logs -f'
 alias dps='docker ps'
-alias dcb='docker-compose up -d --build'
+alias dcb='docker compose up -d --build'
 # List all Docker containers
 alias dpsa='docker ps -a'
 alias dpsc='docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"'

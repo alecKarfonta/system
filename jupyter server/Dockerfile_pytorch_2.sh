@@ -3,7 +3,8 @@
 
 # Set up base Ubuntu 20 image
 #ARG BASE_IMAGE=ubuntu:20.04
-ARG BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+ARG BASE_IMAGE=nvidia/12.6.3-runtime-ubuntu22.04
+
 ARG PYTHON_VERSION=3.10
 
 FROM ${BASE_IMAGE} as dev-base
