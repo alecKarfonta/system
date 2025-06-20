@@ -1,10 +1,5 @@
-# Adapted from Pytorch official docker file
-# https://github.com/pytorch/pytorch/blob/main/Dockerfile
 
-# Set up base Ubuntu 20 image
-#ARG BASE_IMAGE=ubuntu:20.04
-ARG BASE_IMAGE=nvidia/12.6.3-runtime-ubuntu22.04
-
+ARG BASE_IMAGE=nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
 ARG PYTHON_VERSION=3.10
 
 FROM ${BASE_IMAGE} as dev-base
@@ -67,13 +62,13 @@ COPY --from=conda /opt/conda /opt/conda
 
 FROM conda as conda-installs
 ARG PYTHON_VERSION=3.10
-ARG CUDA_VERSION=118
+ARG CUDA_VERSION=121 
 ARG CUDA_CHANNEL=nvidia
 ARG INSTALL_CHANNEL=pytorch-nightly
 # Automatically set by buildx
 RUN /opt/conda/bin/conda update -y conda
 RUN /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -y python=${PYTHON_VERSION}
-ARG TARGETPLATFORM
+ARG TARGETPLATFORMmoc
 #RUN /opt/conda/bin/pip install torchelastic
 
 FROM ${BASE_IMAGE} as official
@@ -103,31 +98,14 @@ FROM official as dev
 # Should override the already installed version from the official-image stage
 COPY --from=build /opt/conda /opt/conda
 
-# Configure Jupyter
+# Install Jupyter and related packages
 RUN pip install jupyter notebook jupyterlab
 RUN pip install jupyter_server
 
-# Copy custom Jupyter config
-COPY custom/ /root/.jupyter/
-
-# Enable Jupyter widgets
-#RUN pip install jupyter_contrib_nbextensions jupyter_nbextensions_configurator
-#RUN jupyter contrib nbextension install --sys-prefix
-#RUN jupyter nbextensions_configurator enable --sys-prefix
-#RUN pip install ipywidgets
-#RUN jupyter nbextension enable --py widgetsnbextension
-
-# Generate default config and set some basic security
-RUN jupyter server --generate-config
-RUN echo "c.ServerApp.ip = '0.0.0.0'" >> /root/.jupyter/jupyter_server_config.py
-RUN echo "c.ServerApp.allow_root = True" >> /root/.jupyter/jupyter_server_config.py
-RUN echo "c.ServerApp.open_browser = False" >> /root/.jupyter/jupyter_server_config.py
-
-# Set up default password (this will set password to 'jupyter')
-RUN python -c 'from jupyter_server.auth import passwd; print(passwd("jupyter"))' > /tmp/sha.txt
-RUN echo "c.ServerApp.password = u'$(cat /tmp/sha.txt)'" >> /root/.jupyter/jupyter_server_config.py
-RUN echo "c.ServerApp.token = ''" >> /root/.jupyter/jupyter_server_config.py
-RUN rm /tmp/sha.txt
+# Set a password for Jupyter (replace 'your_password' with your desired password)
+RUN python3 -c "from notebook.auth import passwd; print(passwd('jupyter'))" > /tmp/jupyter_password && \
+    mkdir -p /root/.jupyter && \
+    echo "c.NotebookApp.password = open('/tmp/jupyter_password').read().strip()" > /root/.jupyter/jupyter_notebook_config.py
 
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -143,7 +121,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         unzip \
         wget
 
-# Install ML libs
+# Install ML 
 #RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 #RUN pip install deepspeed
 #RUN pip install bitsandbytes
@@ -154,32 +132,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 #RUN pip install  --upgrade --no-deps --force-reinstall -U git+https://github.com/huggingface/peft.git 
 #RUN pip install  --upgrade --no-deps --force-reinstall -U git+https://github.com/huggingface/accelerate.git
 
-#RUN pip install jupyter_contrib_nbextensions
-#RUN jupyter contrib nbextension install --sys-prefix
-
-# Set up aws
-# Source: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
-#RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-#RUN unzip awscliv2.zip
-#RUN ./aws/install
-
-EXPOSE 3141
 EXPOSE 8888
-EXPOSE 6901
-EXPOSE 5901
-EXPOSE 5900
-EXPOSE 22
 
 RUN apt-get update
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-setuptools
-RUN pip3 install setuptools==64.0.0
-RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y
-
-
 
 # Run Jupyter widgets
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--allow-root", "--no-browser"]
-#RUN jupyter notebook --ip=0.0.0.0 --allow-root --no-browser &
-
-
-
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--no-browser", "--allow-root"]

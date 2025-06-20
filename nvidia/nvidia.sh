@@ -34,15 +34,9 @@ apt search nvidia
 #sudo apt install libnvidia-gl-<version>
 #sudo apt install nvidia-driver-<version>
 
-sudo apt install libnvidia-common-535
-sudo apt install libnvidia-gl-535
-sudo apt install nvidia-driver-535
-
-
-sudo apt install libnvidia-common-525
-sudo apt install libnvidia-gl-525
-sudo apt install nvidia-driver-525
-
+sudo apt install libnvidia-common-550
+sudo apt install libnvidia-gl-550
+sudo apt install nvidia-driver-550
 
 # If you run into issues with driver not installing or starting disable secure boot
 
@@ -62,5 +56,25 @@ sudo apt-get update
 sudo apt-get -y install cuda-toolkit-12-8
 
 
+# Add NVIDIA package repositories
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+# Update package listing
+sudo apt-get update
+
+# Install nvidia-container-toolkit
+sudo apt-get install -y nvidia-container-toolkit
+
+# Configure the Docker daemon to recognize the NVIDIA Container Runtime
+sudo nvidia-ctk runtime configure --runtime=docker
+
+# Restart Docker daemon
+sudo systemctl restart docker
+
+
 # Test nvidia + docker
 docker run --rm --gpus all nvidia/cuda:12.0.0-base-ubuntu22.04 nvidia-smi
+

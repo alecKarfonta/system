@@ -152,8 +152,25 @@ python --version
 
 # Install PyTorch with CUDA support
 echo -e "\n${YELLOW}Installing PyTorch with CUDA support...${NC}"
-#pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-pip install --upgrade --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+echo -e "Choose PyTorch installation method:"
+echo -e "1) Install stable PyTorch (recommended)"
+echo -e "2) Install nightly PyTorch (latest features, may be unstable)"
+read -p "Enter your choice (1-2): " torch_choice
+
+case $torch_choice in
+    1)
+        echo -e "${YELLOW}Installing stable PyTorch...${NC}"
+        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+        ;;
+    2)
+        echo -e "${YELLOW}Installing nightly PyTorch...${NC}"
+        pip install --upgrade --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+        ;;
+    *)
+        echo -e "${RED}Invalid choice, defaulting to stable PyTorch${NC}"
+        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+        ;;
+esac
 
 # Check PyTorch CUDA availability
 echo -e "\n${YELLOW}Checking PyTorch CUDA availability:${NC}"
