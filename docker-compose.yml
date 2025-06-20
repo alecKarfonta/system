@@ -33,9 +33,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_DB=mldev
-      - POSTGRES_USER=mldev
-      - POSTGRES_PASSWORD=mldev123
+      - POSTGRES_DB=${POSTGRES_DB:-mldev}
+      - POSTGRES_USER=${POSTGRES_USER:-mldev}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mldev123}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -50,7 +50,7 @@ services:
     volumes:
       - devpi_data:/mnt/devpi
     environment:
-      - DEVPI_PASSWORD=devpi123
+      - DEVPI_PASSWORD=${DEVPI_PASSWORD:-devpi123}
 
   # vLLM API Server
   vllm-server:
@@ -108,9 +108,9 @@ services:
     ports:
       - "27017:27017"
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=admin
-      - MONGO_INITDB_ROOT_PASSWORD=admin123
-      - MONGO_INITDB_DATABASE=mldev
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-admin123}
+      - MONGO_INITDB_DATABASE=${MONGO_DATABASE:-mldev}
     volumes:
       - mongodb_data:/data/db
 
@@ -142,7 +142,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
