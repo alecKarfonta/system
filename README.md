@@ -33,7 +33,7 @@ This repository provides modular setup for:
 ├── 📁 anaconda/          # Conda environment management
 ├── 📁 docker/            # Docker configurations & Dockerfiles  
 ├── 📁 jupyter/           # Jupyter Lab/Notebook setup
-├── 📁 jupyter server/    # Production Jupyter server config
+├── 📁 jupyter-server/    # Production Jupyter server config
 ├── 📁 ml/               # Machine Learning tools (CUDA, vLLM, PyTorch)
 ├── 📁 kubernetes/       # K8s cluster setup and configs
 ├── 📁 nvidia/           # NVIDIA drivers and CUDA setup
@@ -43,7 +43,6 @@ This repository provides modular setup for:
 ├── 📁 ubuntu/           # Ubuntu-specific system configuration
 ├── 📁 mac/              # macOS development setup
 ├── 📁 zsh/              # Zsh shell configuration
-├── 📁 custom/           # Custom CSS/JS for Jupyter themes
 ├── 📁 docs/             # Detailed documentation for each component
 └── 📄 requirements.txt   # Base Python dependencies
 ```
@@ -55,7 +54,7 @@ This repository provides modular setup for:
 | Component | Purpose | Quick Setup |
 |-----------|---------|-------------|
 | [**Anaconda**](./docs/anaconda.md) | Python environment management | `./anaconda/install_conda.sh` |
-| [**Docker**](./docs/docker.md) | Containerization platform | `./docker/install_docker.sh` |
+| [**Docker**](./docker/README.md) | Containerization platform | `./docker/install_docker.sh` |
 | [**Git Setup**](./docs/git.md) | Version control configuration | `./setup/git.sh` |
 | [**Zsh Shell**](./docs/zsh.md) | Enhanced shell with themes | `./zsh/install_zsh.sh` |
 
@@ -63,7 +62,7 @@ This repository provides modular setup for:
 
 | Component | Purpose | Quick Setup |
 |-----------|---------|-------------|
-| [**CUDA & NVIDIA**](./docs/nvidia.md) | GPU computing support | `./nvidia/nvidia.sh` |
+| [**CUDA & NVIDIA**](./nvidia/README.md) | GPU computing support | `./nvidia/nvidia.sh` |
 | [**vLLM**](./docs/vllm.md) | LLM inference engine | `./ml/install_vllm.sh` |
 | [**Jupyter**](./docs/jupyter.md) | Interactive notebooks | `./jupyter/install_jupyter.sh` |
 | [**PyTorch**](./docs/pytorch.md) | Deep learning framework | Included in ML setup |
@@ -73,7 +72,7 @@ This repository provides modular setup for:
 | Component | Purpose | Quick Setup |
 |-----------|---------|-------------|
 | [**Kubernetes**](./docs/kubernetes.md) | Container orchestration | `./kubernetes/setup_k8s.sh` |
-| [**PostgreSQL**](./docs/postgres.md) | Database server | `./postgres/install_postgres.sh` |
+| [**PostgreSQL**](./postgres/README.md) | Database server | `./postgres/install_postgres.sh` |
 | [**DevPI**](./docs/devpi.md) | Local PyPI mirror | `./devpi/setup_devpi.sh` |
 
 ### Platform-Specific Setup
@@ -115,7 +114,7 @@ source .envs.sh
 ```
 
 ### Custom Jupyter Themes
-The `/custom` directory contains shared CSS/JS files for Jupyter customization:
+The `jupyter-server/custom/` directory contains shared CSS/JS files for Jupyter customization:
 - `custom.css` - Custom styling
 - `custom.js` - JavaScript extensions  
 - `fonts/` - Custom fonts for notebooks
@@ -149,10 +148,19 @@ jupyter lab --version
 
 ## 📖 Detailed Documentation
 
+- [**Quick Start Guide**](./docs/quick-start.md) - Get running in minutes
 - [**Complete Setup Guide**](./docs/complete-setup.md) - Full environment setup
 - [**Component Guides**](./docs/) - Individual component documentation
 - [**Troubleshooting**](./docs/troubleshooting.md) - Common issues and solutions
 - [**Contributing**](./docs/contributing.md) - How to contribute to this project
+
+## 🚀 Getting Started
+
+**New to this repository?** Start with the [Quick Start Guide](./docs/quick-start.md)
+
+**Need help?** Check the [Troubleshooting Guide](./docs/troubleshooting.md)
+
+**Want to contribute?** See [Contributing Guidelines](./docs/contributing.md)
 
 ## 🤝 Contributing
 
@@ -161,6 +169,8 @@ jupyter lab --version
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+Please read our [Contributing Guidelines](./docs/contributing.md) for detailed information.
 
 ## 📄 License
 
