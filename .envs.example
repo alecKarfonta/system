@@ -37,4 +37,9 @@ export POSTGRES_USER=mldev
 export POSTGRES_PASSWORD=your_secure_password_here
 
 # DevPI Configuration
-export DEVPI_PASSWORD=your_devpi_password_here 
+export DEVPI_PASSWORD=your_devpi_password_here
+
+# Docker Compose Service Passwords (optional - defaults provided)
+export POSTGRES_PASSWORD=your_secure_postgres_password
+export MONGO_ROOT_PASSWORD=your_secure_mongo_password
+export GRAFANA_ADMIN_PASSWORD=your_secure_grafana_password 
