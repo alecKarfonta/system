@@ -1,0 +1,6 @@
+# Custom Modelfile for Qwen3 30B with full 262K context
+FROM qwen3:30b-a3b-instruct-2507-q4_K_M
+
+# Set context length to full 262K tokens
+PARAMETER num_ctx 262000
+PARAMETER num_gpu 999

@@ -1,0 +1,5 @@
+# Simple Modelfile for testing 128K context
+FROM qwen2.5-coder:14b-instruct-q4_K_M
+
+# Set context length to 128K tokens
+PARAMETER num_ctx 131072
