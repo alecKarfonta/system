@@ -84,7 +84,15 @@ This repository provides modular setup for:
 
 ## 🛠️ Installation Methods
 
-### Method 1: Complete Setup (Recommended)
+### Method 0: Unified Setup Script (New Ubuntu Machines)
+```bash
+./setup.sh --role standalone --gpu
+./setup.sh --role cluster-master --gpu --enable-kubeflow
+./setup.sh --role cluster-worker --master-ip IP --join-token TOKEN --gpu
+./setup.sh --profile ml-dev --gpu --dry-run --yes
+```
+
+### Method 1: Complete Setup
 ```bash
 # Full ML development environment
 ./setup/complete_setup.sh
