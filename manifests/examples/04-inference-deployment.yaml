@@ -1,0 +1,33 @@
+# A long-running inference service pinned to inference-tier GPUs, with a
+# PodDisruptionBudget so draining a node (add/remove) never takes it fully down.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-inference
+  labels: { app: my-inference }
+spec:
+  replicas: 2                       # 2 replicas -> survives one node leaving
+  selector:
+    matchLabels: { app: my-inference }
+  template:
+    metadata:
+      labels: { app: my-inference }
+    spec:
+      nodeSelector:
+        gpu.homelab/tier: inference
+      containers:
+        - name: server
+          image: nvidia/cuda:12.4.1-base-ubuntu22.04
+          command: ["bash","-lc","nvidia-smi && sleep infinity"]
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: my-inference-pdb
+spec:
+  minAvailable: 1                   # keep >=1 replica during any drain
+  selector:
+    matchLabels: { app: my-inference }

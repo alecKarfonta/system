@@ -1,0 +1,14 @@
+# A reusable "give me one training-class GPU" request.
+# Pods reference this template; each pod gets its own claim/allocation.
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: one-training-gpu
+spec:
+  spec:
+    devices:
+      requests:
+        - name: gpu
+          exactly:
+            deviceClassName: training-gpu
+            count: 1

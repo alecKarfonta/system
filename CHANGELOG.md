@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.0] - 2025-06-05
+
+### k3s Greenfield — Legacy Archive
+
+#### Added
+- **k3s cluster management**: `Makefile`, `scripts/`, `manifests/`, `config/`, `docs/`
+- **Legacy archive index**: `manual_deployments/README.md`
+- **`workloads/`** placeholder for future application manifests
+
+#### Changed
+- **All legacy content moved** to `manual_deployments/` — shell scripts, docker-compose
+  stacks, component folders, and old documentation
+- **Root README** rewritten for k3s-first system management
+
+#### Archived (no longer maintained at root)
+- Component install scripts (`anaconda/`, `docker/`, `ml/`, `nvidia/`, `postgres/`, etc.)
+- Deployment stacks (`ollama-rtx5090/`, `jupyter-server/`, `devpi/`, etc.)
+- Bootstrap scripts (`ubuntu_ml_stack_init.sh`, `restore_talker_project.sh`)
+- Legacy docs (`docs/` → `manual_deployments/docs/`)
+
+---
+
 ## [2.0.0] - 2024-06-20
 
 ### 🚀 Major Reorganization & Cleanup

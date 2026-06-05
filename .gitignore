@@ -12,6 +12,8 @@ eggs/
 .eggs/
 lib/
 lib64/
+!scripts/lib/
+!scripts/lib/**
 parts/
 sdist/
 var/
@@ -208,7 +210,9 @@ kubeconfig
 *.kubeconfig
 
 # Custom additions for this repo
-jupyter server/notebooks/
+config/cluster.env
+manual_deployments/ollama-rtx5090/btop/obj/
+manual_deployments/jupyter-server/notebooks/
 **/custom/custom/
 .zplug/
 .p10k.zsh

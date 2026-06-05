@@ -1,0 +1,18 @@
+# DeviceClass: "training" — large-memory / high-compute GPUs.
+# A workload that asks for this class will be scheduled onto ANY matching GPU
+# anywhere in the cluster, by attribute — not by which machine it's on.
+#
+# NOTE: attribute names depend on the NVIDIA DRA driver version. If a claim
+# stays Pending, inspect what's actually published:
+#   kubectl get resourceslices -o yaml | less     (look under .spec.devices[].attributes)
+# and adjust the CEL expression below to match.
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: training-gpu
+spec:
+  selectors:
+    - cel:
+        expression: |-
+          device.driver == "gpu.nvidia.com" &&
+          device.capacity["gpu.nvidia.com"].memory.compareTo(quantity("20Gi")) >= 0

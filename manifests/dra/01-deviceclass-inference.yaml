@@ -1,0 +1,11 @@
+# DeviceClass: "inference" — smaller / cheaper GPUs for serving.
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: inference-gpu
+spec:
+  selectors:
+    - cel:
+        expression: |-
+          device.driver == "gpu.nvidia.com" &&
+          device.capacity["gpu.nvidia.com"].memory.compareTo(quantity("20Gi")) < 0

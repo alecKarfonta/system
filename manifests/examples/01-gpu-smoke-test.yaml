@@ -1,0 +1,21 @@
+# Smallest possible "does GPU scheduling work at all?" test.
+# Runs nvidia-smi on a GPU and exits. Check logs to confirm.
+#   kubectl apply -f manifests/examples/01-gpu-smoke-test.yaml
+#   kubectl logs job/gpu-smoke-test
+#   kubectl delete -f manifests/examples/01-gpu-smoke-test.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gpu-smoke-test
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: smi
+          image: nvidia/cuda:12.4.1-base-ubuntu22.04
+          command: ["nvidia-smi"]
+          resources:
+            limits:
+              nvidia.com/gpu: 1     # classic device-plugin request: "any 1 GPU"

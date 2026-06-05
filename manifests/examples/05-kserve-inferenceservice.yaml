@@ -1,0 +1,16 @@
+# If you run KServe, this is how you pin an InferenceService to a GPU tier.
+# (Assumes KServe is already installed; this repo doesn't install it for you.)
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: my-model
+spec:
+  predictor:
+    nodeSelector:
+      gpu.homelab/tier: inference
+    model:
+      modelFormat: { name: pytorch }
+      storageUri: "s3://models/my-model"     # point at your MinIO bucket
+      resources:
+        limits:
+          nvidia.com/gpu: "1"

@@ -1,188 +1,80 @@
-# ML Development Environment Setup
+# Homelab GPU Cluster
 
-A comprehensive collection of setup scripts, configurations, and tools for building machine learning development environments. This repository provides automated setup for various components commonly used in ML workflows.
+Turn a pile of mismatched machines into one GPU cluster you can add to, remove from,
+and target — without babysitting each box. Built on **k3s** (lightweight Kubernetes),
+the **NVIDIA GPU Operator**, and **DRA** for per-GPU targeting. Wrapped in a friendly
+`make` interface so you rarely touch raw `kubectl`.
 
-## 📚 Quick Start
+> Designed for people who *know their way around* Kubernetes but don't want to *become a
+> Kubernetes administrator* to run a homelab.
 
-```bash
-# Clone the repository
-git clone <your-repo-url>
-cd system
+## What you get
 
-# Choose your setup path:
-# For complete ML environment:
-./setup/complete_setup.sh
+- **One command to add a machine.** `make add-node` prints a line you paste on the new box. It joins, drivers install themselves, its GPUs show up.
+- **No-downtime removal.** `make remove-node NODE=x` drains workloads to other GPUs first, then drops the node.
+- **Target specific GPUs.** Tag GPUs by tier (`training`, `inference`, …) and send workloads to exactly the hardware you want — two ways, beginner and power-user.
+- **HA control plane** so the cluster keeps running while workers come and go.
+- **A web GUI** (Headlamp) for managing the cluster + **Grafana** for per-GPU metrics — no terminal required for day-to-day.
+- **Batteries included:** replicated storage (Longhorn), GPU metrics (DCGM → Grafana), works behind CGNAT via Tailscale.
 
-# For specific components, see individual sections below
-```
+## The 10-minute first run
 
-## 🏗️ Architecture Overview
-
-This repository provides modular setup for:
-
-- **Development Environment**: Python, Conda, virtual environments
-- **ML Infrastructure**: Jupyter, CUDA, PyTorch, vLLM
-- **Containerization**: Docker configurations for various services
-- **Orchestration**: Kubernetes cluster setup
-- **Package Management**: Local PyPI mirrors, caching
-- **System Configuration**: Shell, Git, and development tools
-
-## 📂 Repository Structure
-
-```
-├── 📁 anaconda/          # Conda environment management
-├── 📁 docker/            # Docker configurations & Dockerfiles  
-├── 📁 jupyter/           # Jupyter Lab/Notebook setup
-├── 📁 jupyter-server/    # Production Jupyter server config
-├── 📁 ml/               # Machine Learning tools (CUDA, vLLM, PyTorch)
-├── 📁 kubernetes/       # K8s cluster setup and configs
-├── 📁 nvidia/           # NVIDIA drivers and CUDA setup
-├── 📁 postgres/         # PostgreSQL database setup
-├── 📁 devpi/            # Local PyPI server and package caching
-├── 📁 setup/            # System setup scripts (Git, shell, etc.)
-├── 📁 ubuntu/           # Ubuntu-specific system configuration
-├── 📁 mac/              # macOS development setup
-├── 📁 zsh/              # Zsh shell configuration
-├── 📁 docs/             # Detailed documentation for each component
-└── 📄 requirements.txt   # Base Python dependencies
-```
-
-## 🚀 Component Documentation
-
-### Core Development Environment
-
-| Component | Purpose | Quick Setup |
-|-----------|---------|-------------|
-| [**Anaconda**](./docs/anaconda.md) | Python environment management | `./anaconda/install_conda.sh` |
-| [**Docker**](./docker/README.md) | Containerization platform | `./docker/install_docker.sh` |
-| [**Git Setup**](./docs/git.md) | Version control configuration | `./setup/git.sh` |
-| [**Zsh Shell**](./docs/zsh.md) | Enhanced shell with themes | `./zsh/install_zsh.sh` |
-
-### Machine Learning Stack
-
-| Component | Purpose | Quick Setup |
-|-----------|---------|-------------|
-| [**CUDA & NVIDIA**](./nvidia/README.md) | GPU computing support | `./nvidia/nvidia.sh` |
-| [**vLLM**](./docs/vllm.md) | LLM inference engine | `./ml/install_vllm.sh` |
-| [**Jupyter**](./docs/jupyter.md) | Interactive notebooks | `./jupyter/install_jupyter.sh` |
-| [**PyTorch**](./docs/pytorch.md) | Deep learning framework | Included in ML setup |
-
-### Infrastructure & Services
-
-| Component | Purpose | Quick Setup |
-|-----------|---------|-------------|
-| [**Kubernetes**](./docs/kubernetes.md) | Container orchestration | `./kubernetes/setup_k8s.sh` |
-| [**PostgreSQL**](./postgres/README.md) | Database server | `./postgres/install_postgres.sh` |
-| [**DevPI**](./docs/devpi.md) | Local PyPI mirror | `./devpi/setup_devpi.sh` |
-
-### Platform-Specific Setup
-
-| Platform | Purpose | Quick Setup |
-|----------|---------|-------------|
-| [**Ubuntu**](./docs/ubuntu.md) | Ubuntu system configuration | `./ubuntu/ubuntu_setup.sh` |
-| [**macOS**](./docs/macos.md) | macOS development setup | `./mac/mac_dev_setup.sh` |
-
-## 🛠️ Installation Methods
-
-### Method 1: Complete Setup (Recommended)
-```bash
-# Full ML development environment
-./setup/complete_setup.sh
-```
-
-### Method 2: Selective Installation
-```bash
-# Install specific components
-./anaconda/install_conda.sh
-./nvidia/nvidia.sh  
-./ml/install_vllm.sh
-```
-
-### Method 3: Docker-based Setup
-```bash
-# Run pre-configured development environment
-docker-compose up -d jupyter-ml
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-```bash
-# Copy and modify environment configuration
-cp .envs.example .envs.sh
-source .envs.sh
-```
-
-### Custom Jupyter Themes
-The `jupyter-server/custom/` directory contains shared CSS/JS files for Jupyter customization:
-- `custom.css` - Custom styling
-- `custom.js` - JavaScript extensions  
-- `fonts/` - Custom fonts for notebooks
-
-## 📋 Prerequisites
-
-### Ubuntu/Debian
-```bash
-sudo apt update && sudo apt install -y curl wget git build-essential
-```
-
-### macOS
-```bash
-# Install Homebrew first
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
-## 🧪 Testing Your Setup
+On the machine you want as your main controller:
 
 ```bash
-# Test GPU setup
-nvidia-smi
-python -c "import torch; print(torch.cuda.is_available())"
-
-# Test ML stack
-python -c "import vllm; print('vLLM installed successfully')"
-
-# Test Jupyter
-jupyter lab --version
+git clone <this-repo> gpu-cluster && cd gpu-cluster
+make config                 # creates config/cluster.env
+$EDITOR config/cluster.env   # set SERVER_HOST to THIS machine's IP
+make preflight              # sanity-check the box
+make server                 # install the control plane
+make kubeconfig             # so 'kubectl' just works
+make stack                  # GPU Operator + DRA + storage + monitoring + web GUI
+make label-gpus             # auto-tag GPUs by tier
+make status                 # admire your cluster
+make ui                     # open the Headlamp web GUI (login token is printed)
 ```
 
-## 📖 Detailed Documentation
+Add a GPU machine:
 
-- [**Quick Start Guide**](./docs/quick-start.md) - Get running in minutes
-- [**Complete Setup Guide**](./docs/complete-setup.md) - Full environment setup
-- [**Component Guides**](./docs/) - Individual component documentation
-- [**Troubleshooting**](./docs/troubleshooting.md) - Common issues and solutions
-- [**Contributing**](./docs/contributing.md) - How to contribute to this project
+```bash
+make add-node               # run on the controller; copy the printed line...
+# ...then on the NEW machine, after cloning the repo + copying cluster.env:
+JOIN_TOKEN='...' make agent
+make label-gpus             # back on the controller, re-tag
+```
 
-## 🚀 Getting Started
+Send a job to your big GPUs:
 
-**New to this repository?** Start with the [Quick Start Guide](./docs/quick-start.md)
+```bash
+kubectl apply -f manifests/examples/02-training-job-nodeselector.yaml
+```
 
-**Need help?** Check the [Troubleshooting Guide](./docs/troubleshooting.md)
+## Layout
 
-**Want to contribute?** See [Contributing Guidelines](./docs/contributing.md)
+```
+config/      cluster.env  — the ONE file you edit
+scripts/     all the logic (install, join, remove, label, status, stack)
+manifests/   gpu-operator values, DRA DeviceClasses, ready-to-run examples
+docs/        step-by-step guides + glossary + troubleshooting
+Makefile     the friendly command menu — run 'make help'
+```
 
-## 🤝 Contributing
+## Where to read next
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+- New to this? → `docs/01-overview.md` then `docs/02-install-walkthrough.md`
+- "How do I send work to *this* GPU?" → `docs/03-gpu-targeting.md`
+- Adding/removing machines → `docs/04-managing-nodes.md`
+- Prefer a UI over the terminal? → `docs/06-gui-and-monitoring.md`
+- Something's broken → `docs/05-troubleshooting.md`
+- "What does this Kubernetes word mean?" → `docs/glossary.md`
 
-Please read our [Contributing Guidelines](./docs/contributing.md) for detailed information.
+## Requirements
 
-## 📄 License
+- Machines running Ubuntu/Debian (others may work, untested).
+- NVIDIA GPUs. For consumer cards (30xx/40xx/50xx), install the host driver yourself first (`sudo apt install nvidia-driver-XXX`) and keep `GPU_OPERATOR_MANAGES_DRIVER=0`.
+- Kubernetes ≥ 1.34 for the DRA per-GPU targeting (k3s `stable` channel is fine). Node-label targeting works on any version.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## Legacy
 
-## 🆘 Support
-
-- 📖 Check the [documentation](./docs/)
-- 🐛 [Report bugs](../../issues)
-- 💬 [Ask questions](../../discussions)
-- 🔧 [Request features](../../issues/new)
-
----
-
-**Quick Links**: [Setup Guide](./docs/setup.md) | [Components](./docs/) | [Troubleshooting](./docs/troubleshooting.md) | [Contributing](./docs/contributing.md) 
+Pre-k3s shell scripts, docker-compose stacks, and one-off deployments are archived in
+[`manual_deployments/`](manual_deployments/README.md). Reference only — do not extend.

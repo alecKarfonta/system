@@ -1,0 +1,12 @@
+# Longhorn values for a homelab. Sensible, conservative defaults.
+defaultSettings:
+  # Keep 2 replicas of each volume so losing one node doesn't lose data.
+  # If you only have 1-2 nodes, set this to 1 to avoid "degraded" warnings.
+  defaultReplicaCount: 2
+  # Don't schedule storage replicas onto nodes you might pull frequently.
+  # Tag stable nodes with: kubectl label node <n> storage=true   (optional)
+  createDefaultDiskLabeledNodes: false
+  storageMinimalAvailablePercentage: 15
+persistence:
+  defaultClass: true
+  defaultClassReplicaCount: 2

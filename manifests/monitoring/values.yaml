@@ -1,0 +1,17 @@
+# kube-prometheus-stack values, trimmed for a homelab.
+grafana:
+  defaultDashboardsEnabled: true
+  service:
+    type: ClusterIP        # reach it via 'kubectl port-forward'
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    # Persist metrics so a restart doesn't wipe history.
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          resources:
+            requests:
+              storage: 20Gi
+# The GPU Operator's DCGM exporter already exposes a ServiceMonitor;
+# this stack will scrape it automatically once both are installed.

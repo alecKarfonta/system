@@ -1,0 +1,38 @@
+# NVIDIA GPU Operator values, tuned for k3s + a mixed consumer/datacenter fleet.
+# The driver.enabled flag is overridden by bootstrap-stack.sh from your cluster.env.
+
+# --- k3s-specific wiring ----------------------------------------------------
+# k3s ships its own containerd in a non-standard location. Without these, the
+# container-toolkit can't register the 'nvidia' runtime and GPUs never appear.
+toolkit:
+  enabled: true
+  env:
+    - name: CONTAINERD_CONFIG
+      value: /var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl
+    - name: CONTAINERD_SOCKET
+      value: /run/k3s/containerd/containerd.sock
+    - name: CONTAINERD_RUNTIME_CLASS
+      value: nvidia
+    - name: CONTAINERD_SET_AS_DEFAULT
+      value: "true"
+
+# --- Feature discovery: auto-labels nodes with GPU product/memory/etc. -------
+nfd:
+  enabled: true          # Node Feature Discovery
+gfd:
+  enabled: true          # GPU Feature Discovery -> nvidia.com/gpu.product, .memory, .count
+
+# --- Telemetry: per-GPU metrics into Prometheus -----------------------------
+dcgmExporter:
+  enabled: true
+
+# --- MIG: off by default. Consumer cards don't support it; A100/H100 do. -----
+mig:
+  strategy: single
+
+# --- Validators (leave on; they verify the node is GPU-ready) ---------------
+validator:
+  plugin:
+    env:
+      - name: WITH_WORKLOAD
+        value: "false"

@@ -1,0 +1,21 @@
+# BEGINNER-FRIENDLY targeting: pin a training job to "training-tier" GPUs using
+# the labels that 'make label-gpus' applied. This works with the plain device
+# plugin — no DRA required. Easiest mental model.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: train-on-big-gpu
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        gpu.homelab/tier: training        # <-- target the tier you want
+      containers:
+        - name: trainer
+          image: nvidia/cuda:12.4.1-base-ubuntu22.04
+          command: ["bash","-lc","nvidia-smi && echo 'put your training command here'"]
+          resources:
+            limits:
+              nvidia.com/gpu: 1

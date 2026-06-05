@@ -1,0 +1,22 @@
+# POWER targeting: ask for a GPU by ATTRIBUTE via DRA. The scheduler finds a
+# matching GPU anywhere in the fleet — even if a single machine has mixed cards.
+# Requires the NVIDIA DRA driver + DeviceClasses (installed by 'make stack').
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: train-via-dra
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      resourceClaims:
+        - name: gpu
+          resourceClaimTemplateName: one-training-gpu   # from manifests/dra/
+      containers:
+        - name: trainer
+          image: nvidia/cuda:12.4.1-base-ubuntu22.04
+          command: ["bash","-lc","nvidia-smi && echo 'training command here'"]
+          resources:
+            claims:
+              - name: gpu
