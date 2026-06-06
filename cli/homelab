@@ -1,0 +1,319 @@
+#!/usr/bin/env python3
+"""
+homelab - one CLI to install, join, and manage your GPU cluster.
+
+Runs on a fresh Ubuntu/Debian box with nothing but python3 (stdlib only).
+
+  homelab doctor [--fix]        check (and optionally install) dependencies
+  homelab discover [--json]     probe this machine's hardware (GPUs: VRAM, compute cap)
+  homelab init                  install the FIRST control-plane node (here)
+  homelab join worker|server    join this machine to the cluster, auto-labeled by hardware
+  homelab token [worker|server] (on a server) print the join command for a new machine
+  homelab status                fleet view: nodes, GPUs, VRAM, tiers
+  homelab remove <node>         gracefully drain + remove a node (no downtime)
+  homelab label <node> k=v ...  set gpu.homelab/* labels on a node
+  homelab stack                 install GPU Operator + DRA + storage + monitoring + UIs
+  homelab ui                    open Headlamp (generic k8s GUI)
+  homelab cockpit               open the Fleet Cockpit (GPU-centric GUI)
+"""
+import argparse, json, os, re, shutil, ssl, subprocess, sys, time
+from pathlib import Path
+
+# ---------------------------------------------------------------- paths/env
+HERE = Path(__file__).resolve()
+REPO = HERE.parent.parent
+C = {k: (v if sys.stdout.isatty() and not os.environ.get("NO_COLOR") else "")
+     for k, v in dict(G="\033[32m", Y="\033[33m", R="\033[31m", B="\033[36m",
+                      BOLD="\033[1m", DIM="\033[2m", X="\033[0m").items()}
+
+def info(m): print(f"{C['B']}::{C['X']} {m}")
+def ok(m):   print(f"{C['G']} ok{C['X']} {m}")
+def warn(m): print(f"{C['Y']} warn{C['X']} {m}", file=sys.stderr)
+def die(m, code=1): print(f"{C['R']} err{C['X']} {m}", file=sys.stderr); sys.exit(code)
+def title(m): print(f"\n{C['BOLD']}{m}{C['X']}\n" + "-" * 60)
+
+def load_env():
+    env, f = {}, REPO / "config" / "cluster.env"
+    if not f.exists():
+        f = REPO / "config" / "cluster.env.example"
+    for line in f.read_text().splitlines():
+        m = re.match(r'^([A-Z0-9_]+)="?([^"]*)"?\s*$', line.strip())
+        if m: env[m.group(1)] = m.group(2)
+    return env
+
+def run(cmd, check=True, capture=True, env=None, quiet=False):
+    try:
+        r = subprocess.run(cmd, check=check, env=env,
+                           stdout=subprocess.PIPE if capture else None,
+                           stderr=subprocess.PIPE if capture else None, text=True)
+        return r.stdout.strip() if capture else ""
+    except FileNotFoundError:
+        if not quiet: warn(f"command not found: {cmd[0]}")
+        return None
+    except subprocess.CalledProcessError as e:
+        if not quiet: warn(f"{' '.join(cmd)} failed: {(e.stderr or '').strip()[:200]}")
+        return None
+
+def sudo(cmd): return cmd if os.geteuid() == 0 else ["sudo"] + cmd
+
+def confirm(q):
+    if os.environ.get("ASSUME_YES") == "1": return True
+    return input(f"{q} [y/N] ").strip().lower() == "y"
+
+# ---------------------------------------------------------------- kubectl
+def kubeconfig():
+    for p in (os.environ.get("KUBECONFIG"), str(Path.home() / ".kube/config"),
+              "/etc/rancher/k3s/k3s.yaml"):
+        if p and os.path.exists(p) and os.access(p, os.R_OK): return p
+    return str(Path.home() / ".kube/config")
+
+def kc(args, check=True, quiet=False):
+    if shutil.which("kubectl"):
+        e = os.environ.copy(); e["KUBECONFIG"] = kubeconfig()
+        return run(["kubectl"] + args, check=check, env=e, quiet=quiet)
+    if shutil.which("k3s"):
+        return run(sudo(["k3s", "kubectl"] + args), check=check, quiet=quiet)
+    die("Neither kubectl nor k3s found. Is this machine part of the cluster?")
+
+def require_cluster():
+    if kc(["version", "--request-timeout=5s"], check=True, quiet=True) is None:
+        die("Can't reach a cluster. On the server run 'make kubeconfig', or run this there.")
+
+# ---------------------------------------------------------------- discovery
+def tier_for(product: str) -> str:
+    p = product.lower()
+    if any(x in p for x in ("h100", "h200", "a100", "a800", "b100", "b200")): return "datacenter"
+    if any(x in p for x in ("5090", "4090", "3090", "rtx pro", "rtx 6000", "a6000")): return "training"
+    if any(x in p for x in ("5080","5070","5060","4080","4070","4060","3080","3070","3060")): return "inference"
+    return "general"
+
+def sanitize(v: str) -> str:
+    v = re.sub(r"[^A-Za-z0-9._-]", "-", v).strip("-_.")
+    return v[:63] or "unknown"
+
+def discover():
+    hw = {"hostname": os.uname().nodename, "gpus": [], "cpu_cores": os.cpu_count() or 0}
+    try:
+        kb = int(re.search(r"MemTotal:\s+(\d+)", Path("/proc/meminfo").read_text()).group(1))
+        hw["ram_gb"] = round(kb / 1024 / 1024)
+    except Exception:
+        hw["ram_gb"] = 0
+    out = run(["nvidia-smi", "--query-gpu=name,memory.total,compute_cap",
+               "--format=csv,noheader"], check=False, quiet=True)
+    if out is None or out == "":
+        # older drivers may not support compute_cap; try without it
+        out2 = run(["nvidia-smi", "--query-gpu=name,memory.total",
+                    "--format=csv,noheader"], check=False, quiet=True)
+        if out2:
+            out = "\n".join(f"{l}, ?" for l in out2.splitlines())
+    for line in (out or "").splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) < 2: continue
+        name = parts[0]
+        m = re.search(r"(\d+)", parts[1]); vram_mib = int(m.group(1)) if m else 0
+        cc = parts[2] if len(parts) > 2 and re.match(r"^\d+\.\d+$", parts[2]) else ""
+        hw["gpus"].append({"name": name, "vram_gb": round(vram_mib / 1024),
+                           "compute_cap": cc, "tier": tier_for(name)})
+    return hw
+
+def labels_for(hw):
+    L = {"homelab/cpu-cores": str(hw["cpu_cores"]), "homelab/ram-gb": str(hw["ram_gb"])}
+    if hw["gpus"]:
+        g = hw["gpus"]
+        L["gpu.homelab/count"]   = str(len(g))
+        L["gpu.homelab/vram-gb"] = str(min(x["vram_gb"] for x in g))   # min = safe guarantee
+        ccs = [x["compute_cap"] for x in g if x["compute_cap"]]
+        if ccs: L["gpu.homelab/compute-cap"] = min(ccs, key=lambda s: tuple(map(int, s.split("."))))
+        L["gpu.homelab/product"] = sanitize(g[0]["name"])
+        L["gpu.homelab/tier"]    = min((x["tier"] for x in g),
+                                       key=lambda t: ["datacenter","training","inference","general"].index(t))
+        L["gpu.homelab/managed"] = "true"
+    return L
+
+def cmd_discover(a):
+    hw = discover(); L = labels_for(hw)
+    if a.json:
+        print(json.dumps({"hardware": hw, "labels": L}, indent=2)); return
+    title(f"Hardware on {hw['hostname']}")
+    print(f"CPU cores : {hw['cpu_cores']}\nRAM       : {hw['ram_gb']} GiB")
+    if not hw["gpus"]:
+        warn("No NVIDIA GPUs detected (or driver missing — try 'homelab doctor').")
+    for i, g in enumerate(hw["gpus"]):
+        cc = g["compute_cap"] or "?"
+        print(f"GPU {i}     : {g['name']}  |  {g['vram_gb']} GiB VRAM  |  compute {cc}  |  tier={g['tier']}")
+    title("Labels this node will carry")
+    for k, v in sorted(L.items()): print(f"  {k}={v}")
+
+# ---------------------------------------------------------------- doctor
+def cmd_doctor(a):
+    title(f"Doctor — {os.uname().nodename}")
+    missing = [c for c in ("curl",) if not shutil.which(c)]
+    for c in ("curl", "python3"):
+        ok(f"{c} present") if shutil.which(c) else warn(f"{c} MISSING")
+    has_gpu = bool(run(["sh", "-c", "lspci | grep -i nvidia | grep -iE 'vga|3d'"],
+                       check=False, quiet=True))
+    if has_gpu and not shutil.which("nvidia-smi"):
+        warn("NVIDIA GPU present but no driver (nvidia-smi missing).")
+        if a.fix and shutil.which("ubuntu-drivers"):
+            if confirm("Install the recommended NVIDIA driver via ubuntu-drivers?"):
+                run(sudo(["ubuntu-drivers", "install"]), capture=False)
+                warn("Reboot before joining the cluster.")
+        else:
+            print("  Fix: sudo apt update && sudo ubuntu-drivers install   (then reboot)")
+    elif shutil.which("nvidia-smi"):
+        ok(f"NVIDIA driver { run(['nvidia-smi','--query-gpu=driver_version','--format=csv,noheader'], check=False, quiet=True) or '' }".strip())
+    if missing and a.fix:
+        info("Installing missing packages...")
+        run(sudo(["apt-get", "update", "-qq"]), capture=False, check=False)
+        run(sudo(["apt-get", "install", "-y", "-qq"] + missing), capture=False)
+        ok("Dependencies installed.")
+    elif missing:
+        print(f"  Fix: sudo apt-get install -y {' '.join(missing)}   (or re-run with --fix)")
+    if run(["sh","-c","timedatectl show -p NTPSynchronized --value 2>/dev/null"],check=False,quiet=True) == "yes":
+        ok("clock NTP-synced")
+    else:
+        warn("clock not NTP-synced — run: sudo timedatectl set-ntp true")
+    ok("Doctor finished.")
+
+# ---------------------------------------------------------------- init/join
+def k3s_install(role, env_extra, args):
+    e = os.environ.copy(); e.update(env_extra)
+    script = run(["curl", "-sfL", "https://get.k3s.io"], check=True)
+    if script is None: die("Could not download the k3s installer (network?).")
+    p = subprocess.run(["sh", "-s", "-", role] + args, input=script, text=True, env=e)
+    if p.returncode != 0: die("k3s installer failed.")
+
+def label_args(extra_only_role=None):
+    hw = discover(); L = labels_for(hw)
+    if extra_only_role: L[f"node-role.homelab/{extra_only_role}"] = "true"
+    out = []
+    for k, v in L.items(): out += ["--node-label", f"{k}={v}"]
+    return out, hw
+
+def cmd_init(a):
+    env = load_env()
+    title(f"Installing FIRST control-plane on {os.uname().nodename}")
+    if shutil.which("k3s") and run(["systemctl","is-active","--quiet","k3s"],check=False,quiet=True) is not None:
+        if not confirm("k3s already running here. Re-run installer anyway?"): die("Nothing to do.")
+    largs, hw = label_args("control-plane")
+    args = ["--cluster-init", "--write-kubeconfig-mode", "644"] + largs
+    if env.get("K3S_DISABLE_TRAEFIK") == "1":  args += ["--disable", "traefik"]
+    if env.get("K3S_DISABLE_SERVICELB") == "1": args += ["--disable", "servicelb"]
+    if env.get("TAILSCALE_ENABLED") == "1":
+        args += ["--vpn-auth", f"name=tailscale,joinKey={env.get('TAILSCALE_AUTHKEY','')}"]
+    info(f"GPUs detected: {len(hw['gpus'])} — node will be labeled automatically.")
+    if not confirm("Proceed?"): die("Aborted.")
+    k3s_install("server", {"INSTALL_K3S_CHANNEL": env.get("K3S_CHANNEL", "stable")}, args)
+    ok("Control plane up. Next: homelab stack && homelab status")
+
+def cmd_join(a):
+    env = load_env()
+    token = a.token or os.environ.get("JOIN_TOKEN") or die("Need --token (get it from 'homelab token' on a server).")
+    host, port = env.get("SERVER_HOST", ""), env.get("SERVER_PORT", "6443")
+    if a.server_url: host = a.server_url
+    if not host: die("SERVER_HOST not set in config/cluster.env (and no --server given).")
+    role = "control-plane" if a.role == "server" else "gpu-worker"
+    title(f"Joining {os.uname().nodename} as {a.role} -> {host}:{port}")
+    largs, hw = label_args(role)
+    for g in hw["gpus"]:
+        info(f"GPU: {g['name']}  {g['vram_gb']}GiB  cc={g['compute_cap'] or '?'}  tier={g['tier']}")
+    extra = list(largs)
+    if env.get("TAILSCALE_ENABLED") == "1":
+        extra += ["--vpn-auth", f"name=tailscale,joinKey={env.get('TAILSCALE_AUTHKEY','')}"]
+    if not confirm("Proceed?"): die("Aborted.")
+    if a.role == "server":
+        k3s_install("server", {"INSTALL_K3S_CHANNEL": env.get("K3S_CHANNEL","stable"),
+                               "K3S_TOKEN": token},
+                    ["--server", f"https://{host}:{port}"] + extra)
+    else:
+        k3s_install("agent", {"INSTALL_K3S_CHANNEL": env.get("K3S_CHANNEL","stable"),
+                              "K3S_URL": f"https://{host}:{port}", "K3S_TOKEN": token}, extra)
+    ok("Joined. On a server, run: homelab status")
+
+def cmd_token(a):
+    env = load_env()
+    tok = run(sudo(["cat", "/var/lib/rancher/k3s/server/node-token"]), check=False, quiet=True)
+    if not tok: die("Can't read the node token — run this on a control-plane node.")
+    title("Run on the NEW machine (repo cloned, cluster.env copied):")
+    print(f"  ./cli/homelab doctor --fix")
+    print(f"  ./cli/homelab join {a.role} --token '{tok}'")
+    print(f"\n{C['DIM']}The machine self-discovers its GPUs (VRAM, compute cap) and labels itself on join.{C['X']}")
+    warn("Token = cluster credential. Keep it out of pastes/commits.")
+
+# ---------------------------------------------------------------- status
+def cmd_status(a):
+    require_cluster()
+    data = json.loads(kc(["get", "nodes", "-o", "json"]))
+    rows, total, per_tier = [], 0, {}
+    for n in data["items"]:
+        lab = n["metadata"].get("labels", {})
+        ready = next(("Ready" if c["status"] == "True" else "NotReady"
+                      for c in n["status"].get("conditions", []) if c["type"] == "Ready"), "?")
+        role = "control" if lab.get("node-role.homelab/control-plane") == "true" \
+               or "node-role.kubernetes.io/control-plane" in lab else "worker"
+        gpus = int(n["status"].get("allocatable", {}).get("nvidia.com/gpu", "0") or 0)
+        total += gpus
+        tier = lab.get("gpu.homelab/tier", "-")
+        if gpus: per_tier[tier] = per_tier.get(tier, 0) + gpus
+        rows.append((n["metadata"]["name"], ready, role,
+                     lab.get("gpu.homelab/product", lab.get("nvidia.com/gpu.product", "-"))[:24],
+                     str(gpus), lab.get("gpu.homelab/vram-gb", "-"),
+                     lab.get("gpu.homelab/compute-cap", "-"), tier))
+    title("Fleet")
+    hdr = ("NODE","READY","ROLE","GPU","N","VRAM","CC","TIER")
+    w = [max(len(r[i]) for r in rows + [hdr]) for i in range(8)]
+    for r in [hdr] + rows:
+        line = "  ".join(str(r[i]).ljust(w[i]) for i in range(8))
+        print((C["BOLD"] + line + C["X"]) if r is hdr else line)
+    print(f"\nTotal allocatable GPUs: {total}" +
+          ("   (" + ", ".join(f"{k}:{v}" for k, v in sorted(per_tier.items())) + ")" if per_tier else ""))
+
+def cmd_remove(a):
+    require_cluster()
+    if kc(["get", "node", a.node], check=False, quiet=True) is None: die(f"No node named '{a.node}'.")
+    if not confirm(f"Cordon + drain + delete '{a.node}'?"): die("Aborted.")
+    info("cordoning...");  kc(["cordon", a.node])
+    info("draining (workloads reschedule first)...")
+    kc(["drain", a.node, "--ignore-daemonsets", "--delete-emptydir-data", "--timeout=120s"], check=False)
+    info("deleting node object..."); kc(["delete", "node", a.node])
+    ok(f"'{a.node}' removed. On that machine: make uninstall")
+
+def cmd_label(a):
+    require_cluster()
+    pairs = []
+    for kv in a.pairs:
+        if "=" not in kv: die(f"Expected key=value, got '{kv}'")
+        k, v = kv.split("=", 1)
+        if "/" not in k: k = f"gpu.homelab/{k}"
+        pairs.append(f"{k}={v}")
+    kc(["label", "node", a.node, "--overwrite"] + pairs)
+    ok(f"labeled {a.node}: {' '.join(pairs)}")
+
+# ---------------------------------------------------------------- passthrough
+def sh(script, *args): os.execv("/bin/bash", ["bash", str(REPO / "scripts" / script), *args])
+def cmd_stack(a):   sh("bootstrap-stack.sh")
+def cmd_ui(a):      sh("dashboard.sh", "open")
+def cmd_cockpit(a): sh("cockpit.sh", "open")
+
+# ---------------------------------------------------------------- main
+def main():
+    p = argparse.ArgumentParser(prog="homelab", description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    s = p.add_subparsers(dest="cmd", required=True)
+    d = s.add_parser("doctor");   d.add_argument("--fix", action="store_true"); d.set_defaults(f=cmd_doctor)
+    g = s.add_parser("discover"); g.add_argument("--json", action="store_true"); g.set_defaults(f=cmd_discover)
+    s.add_parser("init").set_defaults(f=cmd_init)
+    j = s.add_parser("join"); j.add_argument("role", choices=["worker", "server"])
+    j.add_argument("--token"); j.add_argument("--server", dest="server_url"); j.set_defaults(f=cmd_join)
+    t = s.add_parser("token"); t.add_argument("role", nargs="?", default="worker",
+                                              choices=["worker", "server"]); t.set_defaults(f=cmd_token)
+    s.add_parser("status").set_defaults(f=cmd_status)
+    r = s.add_parser("remove"); r.add_argument("node"); r.set_defaults(f=cmd_remove)
+    l = s.add_parser("label"); l.add_argument("node"); l.add_argument("pairs", nargs="+"); l.set_defaults(f=cmd_label)
+    s.add_parser("stack").set_defaults(f=cmd_stack)
+    s.add_parser("ui").set_defaults(f=cmd_ui)
+    s.add_parser("cockpit").set_defaults(f=cmd_cockpit)
+    a = p.parse_args(); a.f(a)
+
+if __name__ == "__main__":
+    main()

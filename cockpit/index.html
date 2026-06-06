@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLEET COCKPIT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070b09; --panel:#0c1410; --panel2:#0f1a14; --line:#1d3327;
+  --ink:#cfe8d8; --dim:#5f7a6b; --phos:#46f2a0; --phos-soft:rgba(70,242,160,.12);
+  --amber:#ffb454; --red:#ff5d5d; --cyan:#54d8ff;
+  --disp:"Chakra Petch",monospace; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg)}
+body{
+  font-family:var(--mono);color:var(--ink);min-height:100vh;padding:22px 26px 60px;
+  background:
+    radial-gradient(1200px 500px at 70% -10%, rgba(70,242,160,.06), transparent 60%),
+    radial-gradient(800px 400px at 0% 100%, rgba(84,216,255,.04), transparent 60%),
+    var(--bg);
+}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:9;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9;
+  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.5));}
+
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;
+  border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:22px;
+  animation:rise .5s ease both;}
+h1{font-family:var(--disp);font-weight:700;font-size:26px;letter-spacing:.14em;color:var(--phos);
+  text-shadow:0 0 18px rgba(70,242,160,.35);}
+h1 small{display:block;font-size:10px;letter-spacing:.34em;color:var(--dim);font-weight:500;margin-top:2px}
+.stats{display:flex;gap:26px;text-align:right}
+.stat b{font-family:var(--disp);font-size:22px;color:var(--ink);display:block;line-height:1}
+.stat span{font-size:9px;letter-spacing:.22em;color:var(--dim)}
+.live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--phos);
+  box-shadow:0 0 10px var(--phos);margin-right:7px;animation:pulse 1.6s infinite}
+#demo{display:none;font-size:10px;letter-spacing:.2em;color:var(--amber);
+  border:1px solid var(--amber);padding:3px 8px;margin-left:12px}
+
+/* cluster overview */
+.cluster{
+  background:linear-gradient(165deg,#0e1812 0%,var(--panel) 50%,#0a100d 100%);
+  border:1px solid var(--line);padding:18px 20px 16px;margin-bottom:4px;
+  animation:rise .5s ease both;position:relative;overflow:hidden}
+.cluster::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(900px 200px at 10% 0%,rgba(70,242,160,.05),transparent 60%)}
+.cluster.critical{border-color:#5a2a2a;box-shadow:0 0 32px rgba(255,93,93,.08)}
+.cluster.degraded{border-color:#574124}
+.cluster-top{display:flex;gap:20px;align-items:stretch;flex-wrap:wrap;margin-bottom:16px}
+.cluster-health{flex:0 0 200px;display:flex;gap:14px;align-items:center;padding-right:18px;
+  border-right:1px solid var(--line)}
+.ch-ring{--pct:100;--clr:var(--phos);width:64px;height:64px;border-radius:50%;flex-shrink:0;
+  background:conic-gradient(var(--clr) calc(var(--pct)*1%),#0a120e 0);
+  display:grid;place-items:center;position:relative}
+.ch-ring::after{content:"";position:absolute;inset:6px;border-radius:50%;background:var(--panel)}
+.ch-ring i{position:relative;z-index:1;font-size:22px;font-style:normal;line-height:1}
+.ch-title{font-family:var(--disp);font-size:16px;letter-spacing:.1em}
+.ch-title.healthy{color:var(--phos)}
+.ch-title.degraded{color:var(--amber)}
+.ch-title.critical{color:var(--red)}
+.ch-sub{font-size:10px;color:var(--dim);letter-spacing:.08em;margin-top:4px;line-height:1.4}
+.cluster-res{flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.cr{background:#0a120e;border:1px solid #152219;padding:10px 12px}
+.cr span{display:block;font-size:8px;letter-spacing:.22em;color:var(--dim);margin-bottom:5px}
+.cr b{font-family:var(--disp);font-size:18px;color:var(--ink);line-height:1}
+.cr small{display:block;font-size:9px;color:var(--dim);margin-top:4px;letter-spacing:.06em}
+.cluster-usage{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:12px}
+.cu span{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.18em;
+  color:var(--dim);margin-bottom:5px}
+.cu b{color:var(--ink);font-weight:500}
+.cu .bar{height:10px;border:1px solid var(--line);background:#0a120e;position:relative;overflow:hidden}
+.cu .bar i{position:absolute;inset:0;right:auto;transition:width .8s ease}
+.cluster-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.cluster-foot .tag{font-size:9px;letter-spacing:.16em;padding:3px 8px;border:1px solid var(--line);color:var(--dim)}
+.cluster-foot .tag b{color:var(--phos)}
+.cluster-issues{width:100%;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);
+  display:grid;gap:4px}
+.cluster-issues .iss{font-size:10px;letter-spacing:.06em;padding:3px 0}
+.cluster-issues .iss.warn{color:var(--amber)}
+.cluster-issues .iss.error{color:var(--red)}
+
+.sec{font-family:var(--disp);font-size:11px;letter-spacing:.32em;color:var(--dim);
+  margin:26px 0 12px;display:flex;align-items:center;gap:12px}
+.sec::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px}
+.gpu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+
+/* per-GPU fleet cards */
+.gpu-card{
+  background:linear-gradient(165deg,#101c15 0%,var(--panel) 55%,#0a100d 100%);
+  border:1px solid var(--line);padding:16px 17px 14px;position:relative;
+  transition:border-color .25s,box-shadow .25s,transform .25s;overflow:hidden}
+.gpu-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--phos),transparent);opacity:.35}
+.gpu-card.new{animation:rise .5s ease both}
+.gpu-card:hover{border-color:#2f5a42;box-shadow:0 8px 32px rgba(70,242,160,.1);transform:translateY(-2px)}
+.gpu-card.hot{border-color:#5a2a2a;box-shadow:0 0 28px rgba(255,93,93,.12)}
+.gpu-card.hot::before{background:linear-gradient(90deg,transparent,var(--red),transparent);opacity:.55}
+.gpu-card.warn{border-color:#574124}
+.gpu-card.idle{opacity:.82}
+.gpu-card.cordoned{border-color:#574124;background:linear-gradient(165deg,#16120b,var(--panel) 60%,#0a0907 100%)}
+.gc-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+.gc-id{font-family:var(--disp);font-size:18px;font-weight:700;letter-spacing:.08em;color:var(--phos);
+  text-shadow:0 0 14px rgba(70,242,160,.25)}
+.gc-node{font-size:10.5px;color:var(--dim);letter-spacing:.06em}
+.gc-product{font-family:var(--disp);font-size:12px;letter-spacing:.12em;color:var(--ink);
+  margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gc-util{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.gc-ring{--pct:0;--clr:var(--phos);width:72px;height:72px;border-radius:50%;flex-shrink:0;
+  background:conic-gradient(var(--clr) calc(var(--pct)*1%),#0a120e 0);
+  display:grid;place-items:center;position:relative}
+.gc-ring::after{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--panel)}
+.gc-ring b{position:relative;z-index:1;font-family:var(--disp);font-size:17px;letter-spacing:.04em}
+.gc-bars{flex:1;display:grid;gap:6px}
+.gc-bar-row{display:grid;grid-template-columns:52px 1fr 36px;gap:8px;align-items:center;font-size:10px}
+.gc-bar-row span{color:var(--dim);letter-spacing:.14em}
+.gc-bar-row b{text-align:right;font-size:10.5px;color:var(--ink)}
+.gc-bar{height:8px;border:1px solid var(--line);background:#0a120e;position:relative;overflow:hidden}
+.gc-bar i{position:absolute;inset:0;right:auto;transition:width .8s ease}
+.gc-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.gc-stat{background:#0a120e;border:1px solid #152219;padding:7px 9px;text-align:center}
+.gc-stat span{display:block;font-size:8px;letter-spacing:.22em;color:var(--dim);margin-bottom:3px}
+.gc-stat b{font-family:var(--disp);font-size:14px;color:var(--ink)}
+.gc-procs{border-top:1px dashed var(--line);padding-top:10px}
+.gc-procs-h{font-size:8px;letter-spacing:.24em;color:var(--dim);margin-bottom:6px}
+.proc{display:flex;align-items:center;gap:8px;padding:5px 8px;margin-bottom:4px;
+  background:rgba(70,242,160,.04);border:1px solid #1a3326;font-size:10.5px}
+.proc .dot-proc{width:6px;height:6px;border-radius:50%;background:var(--phos);
+  box-shadow:0 0 6px var(--phos);flex-shrink:0}
+.proc .pname{color:var(--phos);font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.proc .pmeta{color:var(--dim);font-size:9px;letter-spacing:.08em}
+.gc-idle{font-size:10px;letter-spacing:.2em;color:var(--dim);padding:4px 0}
+.badge.tier{color:var(--cyan);border-color:#1d3a47}
+.badge.tier.training{color:var(--phos);border-color:#1d4d35}
+.badge.tier.inference{color:var(--cyan);border-color:#1d3a47}
+.badge.tier.datacenter{color:var(--amber);border-color:#574124}
+.badge.alloc{color:var(--phos);border-color:#1d4d35}
+.badge.free{color:var(--dim)}
+.node{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+  padding:14px 16px;position:relative;transition:border-color .2s, box-shadow .2s}
+.node.new{animation:rise .5s ease both}
+.node:hover{border-color:#2c4d3a;box-shadow:0 0 26px rgba(70,242,160,.07)}
+.node.cordoned{border-color:#574124;background:linear-gradient(180deg,#16120b,var(--panel))}
+.node.draining{border-color:var(--amber);box-shadow:0 0 26px rgba(255,180,84,.12)}
+.node h3{font-family:var(--disp);font-size:15px;letter-spacing:.06em;display:flex;align-items:center;gap:9px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--phos);box-shadow:0 0 8px var(--phos)}
+.dot.bad{background:var(--red);box-shadow:0 0 8px var(--red)}
+.badge{font-size:9px;letter-spacing:.18em;padding:2px 7px;border:1px solid var(--line);color:var(--dim)}
+.badge.ctl{color:var(--cyan);border-color:#1d3a47}
+.badge.cord{color:var(--amber);border-color:#574124}
+.badge.drained{color:var(--phos);border-color:#1d4d35}
+.kv{display:flex;flex-wrap:wrap;gap:6px 14px;margin:10px 0 4px;font-size:11px;color:var(--dim)}
+.kv b{color:var(--ink);font-weight:500}
+
+/* allocation segments */
+.meter{display:flex;gap:4px;margin:10px 0 2px}
+.seg{flex:1;height:10px;border:1px solid var(--line);background:#0a120e;position:relative;overflow:hidden}
+.seg.on{background:linear-gradient(180deg,rgba(70,242,160,.85),rgba(70,242,160,.45));
+  border-color:var(--phos);box-shadow:0 0 12px rgba(70,242,160,.35) inset}
+.seg.on::after{content:"";position:absolute;inset:0;
+  background:repeating-linear-gradient(135deg,rgba(0,0,0,.18) 0 4px,transparent 4px 8px)}
+.mlabel{font-size:9px;letter-spacing:.2em;color:var(--dim);margin-top:4px}
+
+/* per-GPU telemetry */
+.telem{margin-top:9px;border-top:1px dashed var(--line);padding-top:8px;display:grid;gap:5px}
+.trow{display:grid;grid-template-columns:26px 1fr 44px 42px 78px 50px;gap:8px;
+  align-items:center;font-size:10.5px}
+.tid{color:var(--dim);letter-spacing:.1em}
+.ubar{height:9px;border:1px solid var(--line);background:#0a120e;position:relative;overflow:hidden}
+.ubar i{position:absolute;inset:0;right:auto;transition:width .8s ease}
+.u-ok{background:linear-gradient(90deg,rgba(70,242,160,.35),rgba(70,242,160,.85));color:var(--phos)}
+.u-warn{background:linear-gradient(90deg,rgba(255,180,84,.35),rgba(255,180,84,.9));color:var(--amber)}
+.u-hot{background:linear-gradient(90deg,rgba(255,93,93,.4),rgba(255,93,93,.95));color:var(--red)}
+.tnum{text-align:right;color:var(--ink)} .tnum.dim{color:var(--dim)}
+
+.pods{margin-top:8px;font-size:10.5px;color:var(--dim);border-top:1px dashed var(--line);padding-top:8px}
+.pods div{display:flex;justify-content:space-between;padding:1px 0}
+.pods b{color:var(--phos);font-weight:500}
+.actions{margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+select,button{font-family:var(--mono);font-size:10.5px;background:#0a120e;color:var(--ink);
+  border:1px solid var(--line);padding:5px 9px;cursor:pointer;letter-spacing:.06em;transition:all .15s}
+button:hover,select:hover{border-color:var(--phos);color:var(--phos)}
+button.warn:hover{border-color:var(--amber);color:var(--amber)}
+button.armed{border-color:var(--red);color:var(--red);animation:pulse 1s infinite}
+button:disabled{opacity:.4;cursor:default}
+
+/* drain progress */
+.drain{margin-top:10px;border:1px solid #574124;background:#14100a;padding:8px 10px}
+.drain .bar{height:10px;border:1px solid #6b4f2a;background:#0a0905;position:relative;overflow:hidden;margin:6px 0 4px}
+.drain .bar i{position:absolute;inset:0;right:auto;background:
+  repeating-linear-gradient(135deg,rgba(255,180,84,.95) 0 8px,rgba(255,180,84,.55) 8px 16px);
+  transition:width .6s ease}
+.drain .dl{font-size:9px;letter-spacing:.2em;color:var(--amber)}
+.drain .dmsg{font-size:9.5px;color:var(--dim);margin-top:2px}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{font-family:var(--disp);font-size:9.5px;letter-spacing:.26em;color:var(--dim);text-align:left;
+  padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:8px 10px;border-bottom:1px solid #122019}
+tr:hover td{background:var(--phos-soft)}
+.num{text-align:right}
+.ready-ok{color:var(--phos)} .ready-bad{color:var(--amber)}
+.scale{display:inline-flex;gap:6px;align-items:center}
+.scale b{min-width:18px;text-align:center}
+
+#toast{position:fixed;bottom:22px;right:26px;background:var(--panel2);border:1px solid var(--phos);
+  color:var(--phos);padding:10px 16px;font-size:11.5px;letter-spacing:.08em;opacity:0;
+  transform:translateY(8px);transition:all .25s;z-index:20}
+#toast.show{opacity:1;transform:none}
+#err{color:var(--red);font-size:11px;margin-top:14px;display:none}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.node.new:nth-child(2){animation-delay:.06s}.node.new:nth-child(3){animation-delay:.12s}
+.node.new:nth-child(4){animation-delay:.18s}.node.new:nth-child(5){animation-delay:.24s}
+.gpu-card.new:nth-child(2){animation-delay:.04s}.gpu-card.new:nth-child(3){animation-delay:.08s}
+.gpu-card.new:nth-child(4){animation-delay:.12s}.gpu-card.new:nth-child(5){animation-delay:.16s}
+.gpu-card.new:nth-child(6){animation-delay:.20s}.gpu-card.new:nth-child(7){animation-delay:.24s}
+.gpu-card.new:nth-child(8){animation-delay:.28s}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>FLEET COCKPIT<small>HOMELAB GPU CLUSTER · CONTROL DECK</small></h1></div>
+  <div class="stats">
+    <div class="stat"><b id="s-nodes">—</b><span>NODES</span></div>
+    <div class="stat"><b id="s-ctl">—</b><span>CONTROL PLANES</span></div>
+    <div class="stat"><b id="s-gpu">—</b><span>GPU ALLOC / TOTAL</span></div>
+    <div class="stat"><b id="s-load">—</b><span>FLEET GPU LOAD</span></div>
+    <div class="stat"><b><span class="live"></span><span id="s-clock" style="font-size:13px"></span></b>
+      <span>LIVE<span id="demo">DEMO DATA</span></span></div>
+  </div>
+</header>
+
+<div class="sec">CLUSTER · OVERVIEW</div>
+<div class="cluster healthy" id="cluster"></div>
+
+<div class="sec">GPUS · FLEET VIEW</div>
+<div class="gpu-grid" id="gpus"></div>
+
+<div class="sec">NODES · ALLOCATION · TELEMETRY</div>
+<div class="grid" id="nodes"></div>
+
+<div class="sec">WORKLOADS</div>
+<table>
+  <thead><tr><th>NAMESPACE / NAME</th><th>KIND</th><th class="num">GPUs</th>
+  <th class="num">READY</th><th class="num">SCALE</th></tr></thead>
+  <tbody id="wl"></tbody>
+</table>
+<div id="err"></div>
+<div id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const TIERS=["training","inference","datacenter","general","-"];
+let busy=false, armed={};
+
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2400);}
+async function api(path,body){
+  const r=await fetch(path,body?{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(body)}:{});
+  const j=await r.json(); if(!r.ok) throw new Error(j.error||r.status); return j;}
+
+const uClass=u=>u>=90?"u-hot":u>=70?"u-warn":"u-ok";
+const fmtG=m=>(m/1024).toFixed(1);
+const fmtGiB=(used,total)=>{
+  const u=used?fmtG(used):0, t=total?fmtG(total):(used?u:"—");
+  return `${u} / ${t} GiB`;};
+const tierBadge=t=>t&&t!=="-"?`<span class="badge tier ${t}">${t.toUpperCase()}</span>`:"";
+const healthIcon=h=>h==="healthy"?"✓":h==="degraded"?"!":"✕";
+const healthSub=(h,c)=>{
+  if(h==="critical") return `${c.issues.length} issue(s) need attention`;
+  if(h==="degraded") return `${c.issues.length} warning(s) — fleet operational`;
+  return "All nodes ready · telemetry live";};
+const fmtKw=w=>w>=1000?`${(w/1000).toFixed(1)} kW`:`${w} W`;
+
+function renderCluster(c){
+  if(!c) return;
+  const el=$("#cluster"), h=c.health||"healthy";
+  el.className=`cluster ${h}`;
+  const r=c.resources||{}, u=c.usage||{}, n=r.nodes||{};
+  const vram=r.vram_gib||{};
+  const tierTags=Object.entries(c.tiers||{}).map(([t,n])=>
+    `<span class="tag">${t.toUpperCase()} <b>${n}</b></span>`).join("");
+  const issues=(c.issues||[]).map(i=>
+    `<div class="iss ${i.level}">${i.level==="error"?"✕":"▲"} ${i.msg}</div>`).join("");
+  const ringClr=h==="critical"?"var(--red)":h==="degraded"?"var(--amber)":"var(--phos)";
+  const ringPct=h==="healthy"?100:h==="degraded"?72:38;
+  el.innerHTML=`
+    <div class="cluster-top">
+      <div class="cluster-health">
+        <div class="ch-ring" style="--pct:${ringPct};--clr:${ringClr}"><i>${healthIcon(h)}</i></div>
+        <div>
+          <div class="ch-title ${h}">${h.toUpperCase()}</div>
+          <div class="ch-sub">${healthSub(h,c)}</div>
+        </div>
+      </div>
+      <div class="cluster-res">
+        <div class="cr"><span>GPUS</span><b>${r.gpus?.allocated??"—"} / ${r.gpus?.total??"—"}</b>
+          <small>${r.gpus?.free??0} free</small></div>
+        <div class="cr"><span>VRAM</span><b>${vram.used??"—"} / ${vram.total??"—"} GiB</b>
+          <small>${u.vram_pct??0}% used</small></div>
+        <div class="cr"><span>CPU</span><b>${r.cpu_cores??"—"}</b><small>allocatable cores</small></div>
+        <div class="cr"><span>RAM</span><b>${r.ram_gib??"—"} GiB</b><small>fleet memory</small></div>
+        <div class="cr"><span>POWER</span><b>${fmtKw(r.power_w||0)}</b>
+          <small>${c.telemetry?"live draw":"no telemetry"}</small></div>
+        <div class="cr"><span>NODES</span><b>${n.ready??"—"} / ${n.total??"—"}</b>
+          <small>${n.workers??0} workers · ${n.control??0} ctrl</small></div>
+        <div class="cr"><span>WORKLOADS</span><b>${u.workloads??0}</b>
+          <small>${u.workload_gpus??0} GPU slots requested</small></div>
+      </div>
+    </div>
+    <div class="cluster-usage">
+      <div class="cu"><span>GPU UTILIZATION <b>${u.gpu_util_pct??0}%</b></span>
+        <div class="bar"><i class="${uClass(u.gpu_util_pct||0)}" style="width:${u.gpu_util_pct||0}%"></i></div></div>
+      <div class="cu"><span>GPU ALLOCATION <b>${u.gpu_alloc_pct??0}%</b></span>
+        <div class="bar"><i class="u-ok" style="width:${u.gpu_alloc_pct||0}%"></i></div></div>
+      <div class="cu"><span>VRAM USAGE <b>${u.vram_pct??0}%</b></span>
+        <div class="bar"><i class="${uClass(u.vram_pct||0)}" style="width:${u.vram_pct||0}%"></i></div></div>
+    </div>
+    <div class="cluster-foot">
+      ${tierTags}
+      ${n.cordoned?`<span class="tag">CORDONED <b>${n.cordoned}</b></span>`:""}
+      ${n.draining?`<span class="tag">DRAINING <b>${n.draining}</b></span>`:""}
+      ${u.gpu_max_pct?`<span class="tag">PEAK GPU <b>${u.gpu_max_pct}%</b></span>`:""}
+    </div>
+    ${issues?`<div class="cluster-issues">${issues}</div>`:""}`;
+}
+const procRows=procs=>{
+  if(!procs||!procs.length) return `<div class="gc-idle">IDLE — no workload</div>`;
+  return procs.map(p=>{
+    const label=p.kind==="pod"?`${p.ns}/${p.name}`:p.name||"?";
+    const meta=p.container||"";
+    return `<div class="proc"><span class="dot-proc"></span>
+      <span class="pname">${label}</span>${meta?`<span class="pmeta">${meta}</span>`:""}</div>`;
+  }).join("");};
+
+function gpuCard(g){
+  const u=Math.round(g.util||0), cls=uClass(u);
+  const cardCls=`gpu-card ${u>=90?"hot":u>=70?"warn":""} ${g.allocated?"":"idle"} ${g.cordoned?"cordoned":""}`;
+  const vramPct=g.vram_total?Math.min(100,Math.round(100*(g.vram_used||0)/g.vram_total)):0;
+  const memU=Math.round(g.mem_util||0);
+  const ringClr=u>=90?"var(--red)":u>=70?"var(--amber)":"var(--phos)";
+  const vramLbl=g.vram_total?fmtGiB(g.vram_used,g.vram_total):(g.vram_gb!=="-"?`— / ${g.vram_gb} GiB`:"—");
+  return `<div class="${cardCls}" data-gpu="${g.id}">
+    <div class="gc-head">
+      <span class="gc-id">GPU ${g.idx}</span>
+      <span class="gc-node">${g.node}${g.node_ready?"":" · DOWN"}</span>
+      ${tierBadge(g.tier)}
+      <span class="badge ${g.allocated?"alloc":"free"}">${g.allocated?"ALLOCATED":"FREE"}</span>
+    </div>
+    <div class="gc-product">${g.product}</div>
+    <div class="gc-util">
+      <div class="gc-ring" style="--pct:${u};--clr:${ringClr}"><b>${u}%</b></div>
+      <div class="gc-bars">
+        <div class="gc-bar-row"><span>VRAM</span>
+          <span class="gc-bar"><i class="${cls}" style="width:${vramPct}%"></i></span>
+          <b>${vramLbl}</b></div>
+        <div class="gc-bar-row"><span>MEM</span>
+          <span class="gc-bar"><i class="${uClass(memU)}" style="width:${memU}%"></i></span>
+          <b>${memU}%</b></div>
+      </div>
+    </div>
+    <div class="gc-stats">
+      <div class="gc-stat"><span>TEMP</span><b>${Math.round(g.temp||0)}°C</b></div>
+      <div class="gc-stat"><span>POWER</span><b>${Math.round(g.power||0)} W</b></div>
+      <div class="gc-stat"><span>CC</span><b>${g.cc}</b></div>
+    </div>
+    <div class="gc-procs">
+      <div class="gc-procs-h">PROCESSES</div>
+      ${procRows(g.processes)}
+    </div>
+  </div>`;}
+
+function patchGpu(el, g){
+  const u=Math.round(g.util||0), cls=uClass(u);
+  el.className=`gpu-card ${u>=90?"hot":u>=70?"warn":""} ${g.allocated?"":"idle"} ${g.cordoned?"cordoned":""}`;
+  const ring=el.querySelector(".gc-ring");
+  if(ring){
+    ring.style.setProperty("--pct", u);
+    ring.style.setProperty("--clr", u>=90?"var(--red)":u>=70?"var(--amber)":"var(--phos)");
+    ring.querySelector("b").textContent=u+"%";
+  }
+  const bars=el.querySelectorAll(".gc-bar i");
+  const vramPct=g.vram_total?Math.min(100,Math.round(100*(g.vram_used||0)/g.vram_total)):0;
+  if(bars[0]){ bars[0].style.width=vramPct+"%"; bars[0].className=cls; }
+  const memU=Math.round(g.mem_util||0);
+  if(bars[1]){ bars[1].style.width=memU+"%"; bars[1].className=uClass(memU); }
+  const vramLbl=g.vram_total?fmtGiB(g.vram_used,g.vram_total):(g.vram_gb!=="-"?`— / ${g.vram_gb} GiB`:"—");
+  const barNums=el.querySelectorAll(".gc-bar-row b");
+  if(barNums[0]) barNums[0].textContent=vramLbl;
+  if(barNums[1]) barNums[1].textContent=memU+"%";
+  const stats=el.querySelectorAll(".gc-stat b");
+  if(stats[0]) stats[0].textContent=Math.round(g.temp||0)+"°C";
+  if(stats[1]) stats[1].textContent=Math.round(g.power||0)+" W";
+  if(stats[2]) stats[2].textContent=g.cc;
+  const alloc=el.querySelector(".badge.alloc,.badge.free");
+  if(alloc){
+    alloc.className=`badge ${g.allocated?"alloc":"free"}`;
+    alloc.textContent=g.allocated?"ALLOCATED":"FREE";
+  }
+  const procs=el.querySelector(".gc-procs");
+  if(procs){
+    const h=procs.querySelector(".gc-procs-h");
+    procs.innerHTML=(h?h.outerHTML:"<div class=\"gc-procs-h\">PROCESSES</div>")+procRows(g.processes);
+  }
+}
+
+function upsertGpus(gpus){
+  const box=$("#gpus");
+  if(!gpus||!gpus.length){
+    box.innerHTML=`<div class="gpu-empty" style="grid-column:1/-1;color:var(--dim);font-size:11px;letter-spacing:.12em;padding:20px 4px">
+      NO GPUS IN FLEET — add a GPU worker with <b style="color:var(--phos)">make add-node</b></div>`;
+    return;
+  }
+  box.querySelector(".gpu-empty")?.remove();
+  const seen=new Set();
+  gpus.forEach(g=>{
+    seen.add(g.id);
+    let el=box.querySelector(`[data-gpu="${CSS.escape(g.id)}"]`);
+    if(!el){
+      const wrap=document.createElement("div");
+      wrap.innerHTML=gpuCard(g);
+      el=wrap.firstElementChild;
+      el.classList.add("new");
+      el.addEventListener("animationend",()=>el.classList.remove("new"),{once:true});
+      box.appendChild(el);
+    } else patchGpu(el, g);
+  });
+  box.querySelectorAll(".gpu-card").forEach(el=>{ if(!seen.has(el.dataset.gpu)) el.remove(); });
+}
+
+function telemRows(t){
+  if(!t||!t.length) return "";
+  return `<div class="telem" data-telem>`+t.map(g=>{
+    const u=Math.round(g.util||0), cls=uClass(u);
+    const vt=(g.vram_used||0)+(g.vram_free||0);
+    return `<div class="trow" data-gpu="${g.idx}"><span class="tid">G${g.idx}</span>
+      <span class="ubar"><i class="${cls}" style="width:${u}%"></i></span>
+      <span class="tnum util ${cls}">${u}%</span>
+      <span class="tnum temp">${Math.round(g.temp||0)}°C</span>
+      <span class="tnum vram">${fmtG(g.vram_used||0)}/${fmtG(vt)}G</span>
+      <span class="tnum dim power">${Math.round(g.power||0)}W</span></div>`;}).join("")+`</div>`;}
+
+function patchTelem(el, t){
+  const box=el.querySelector("[data-telem]");
+  if(!t||!t.length){ if(box) box.remove(); return; }
+  if(!box){ el.querySelector(".mlabel")?.insertAdjacentHTML("afterend", telemRows(t)); return; }
+  const rows=[...box.querySelectorAll(".trow")];
+  if(rows.length!==t.length){ box.outerHTML=telemRows(t); return; }
+  t.forEach((g,i)=>{
+    const u=Math.round(g.util||0), cls=uClass(u), vt=(g.vram_used||0)+(g.vram_free||0);
+    const row=rows[i], bar=row.querySelector(".ubar i");
+    bar.style.width=u+"%"; bar.className=cls;
+    row.querySelector(".util").className=`tnum util ${cls}`; row.querySelector(".util").textContent=u+"%";
+    row.querySelector(".temp").textContent=Math.round(g.temp||0)+"°C";
+    row.querySelector(".vram").textContent=fmtG(g.vram_used||0)+"/"+fmtG(vt)+"G";
+    row.querySelector(".power").textContent=Math.round(g.power||0)+"W";
+  });
+}
+
+function patchNode(el, n, pods, t, d){
+  const active=d&&(d.phase==="starting"||d.phase==="evicting");
+  el.classList.toggle("cordoned",!!n.unschedulable);
+  el.classList.toggle("draining",!!active);
+  el.querySelector(".dot")?.classList.toggle("bad",!n.ready);
+  const h3=el.querySelector("h3");
+  if(h3){
+    let ctl=h3.querySelector(".badge.ctl");
+    if(n.control){ if(!ctl) h3.insertAdjacentHTML("beforeend",'<span class="badge ctl">CTRL</span>'); }
+    else ctl?.remove();
+    let cord=h3.querySelector(".badge.cord");
+    if(n.unschedulable&&!active){
+      if(!cord){ h3.insertAdjacentHTML("beforeend",'<span class="badge cord">CORDONED</span>'); }
+    } else cord?.remove();
+    let drained=h3.querySelector(".badge.drained");
+    if(d&&d.phase==="done"){
+      if(!drained){ h3.insertAdjacentHTML("beforeend",'<span class="badge drained">DRAINED</span>'); }
+    } else drained?.remove();
+  }
+  const kv=el.querySelector(".kv");
+  if(kv) kv.innerHTML=
+    `<span>GPU <b>${n.gpu_product}</b></span><span>VRAM <b>${n.vram} GiB</b></span>`+
+    `<span>CC <b>${n.cc}</b></span><span>CPU <b>${n.cpu}</b></span><span>RAM <b>${n.ram} GiB</b></span>`;
+  const meter=el.querySelector(".meter");
+  if(n.gpus){
+    if(!meter){
+      const noGpu=el.querySelector(".mlabel");
+      if(noGpu) noGpu.outerHTML=
+        `<div class="meter">${Array.from({length:n.gpus},(_,i)=>
+          `<div class="seg ${i<n.gpu_used?"on":""}"></div>`).join("")}</div>`+
+        `<div class="mlabel">ALLOCATION ${n.gpu_used} / ${n.gpus}</div>`;
+    } else {
+      let segs=[...meter.querySelectorAll(".seg")];
+      if(segs.length!==n.gpus){
+        meter.innerHTML=Array.from({length:n.gpus},(_,i)=>
+          `<div class="seg ${i<n.gpu_used?"on":""}"></div>`).join("");
+        segs=[...meter.querySelectorAll(".seg")];
+      }
+      segs.forEach((seg,i)=>seg.classList.toggle("on",i<n.gpu_used));
+      const lbl=el.querySelector(".mlabel");
+      if(lbl) lbl.textContent=`ALLOCATION ${n.gpu_used} / ${n.gpus}`;
+    }
+    patchTelem(el,t);
+  }
+  const podsEl=el.querySelector(".pods");
+  const podRows=(pods||[]).map(p=>
+    `<div><span>${p.ns}/${p.name}</span><b>${p.gpus}× GPU</b></div>`).join("");
+  if(podRows){
+    if(podsEl) podsEl.innerHTML=podRows;
+    else el.querySelector(".actions")?.insertAdjacentHTML("beforebegin",`<div class="pods">${podRows}</div>`);
+  } else podsEl?.remove();
+  let drainEl=el.querySelector(".drain");
+  if(d&&d.phase!=="cleared"){
+    const html=drainBlock(d);
+    if(drainEl) drainEl.outerHTML=html; else el.querySelector(".actions")?.insertAdjacentHTML("beforebegin",html);
+  } else drainEl?.remove();
+  const cordonBtn=el.querySelector("[data-cordon]");
+  if(cordonBtn){
+    cordonBtn.disabled=!!active;
+    cordonBtn.textContent=n.unschedulable?"UNCORDON":"CORDON";
+    cordonBtn.onclick=()=>cordon(n.name,!n.unschedulable);
+  }
+  const drainBtn=el.querySelector("[data-drain]");
+  if(drainBtn){
+    const isArmed=!!armed[n.name];
+    drainBtn.disabled=!!active;
+    drainBtn.className=isArmed?"armed":"warn";
+    drainBtn.textContent=active?"DRAINING…":isArmed?"CONFIRM DRAIN":"DRAIN";
+    drainBtn.onclick=()=>drain(n.name);
+  }
+  const tierSel=el.querySelector("[data-tier]");
+  if(tierSel && tierSel.value!==n.tier) tierSel.value=n.tier;
+}
+
+function upsertNodes(nodes, podsByNode, tel, drains){
+  const box=$("#nodes"), seen=new Set();
+  nodes.forEach(n=>{
+    seen.add(n.name);
+    let el=box.querySelector(`.node[data-name="${CSS.escape(n.name)}"]`);
+    if(!el){
+      const wrap=document.createElement("div");
+      wrap.innerHTML=nodeCard(n,podsByNode[n.name],tel[n.name],drains[n.name]);
+      el=wrap.firstElementChild;
+      el.classList.add("new");
+      el.addEventListener("animationend",()=>el.classList.remove("new"),{once:true});
+      box.appendChild(el);
+    } else patchNode(el,n,podsByNode[n.name],tel[n.name],drains[n.name]);
+  });
+  box.querySelectorAll(".node").forEach(el=>{ if(!seen.has(el.dataset.name)) el.remove(); });
+}
+
+function upsertWorkloads(workloads){
+  const tbody=$("#wl");
+  const empty=`<tr data-empty><td colspan="5" style="color:var(--dim)">no user workloads yet — deploy something and it appears here</td></tr>`;
+  if(!workloads.length){
+    tbody.innerHTML=empty; return;
+  }
+  tbody.querySelector("[data-empty]")?.remove();
+  const seen=new Set();
+  workloads.forEach(w=>{
+    const key=w.ns+"/"+w.name;
+    seen.add(key);
+    let row=tbody.querySelector(`tr[data-wl="${CSS.escape(key)}"]`);
+    if(!row){
+      const wrap=document.createElement("tbody");
+      wrap.innerHTML=wlRow(w);
+      row=wrap.firstElementChild;
+      row.dataset.wl=key;
+      tbody.appendChild(row);
+    } else {
+      row.children[2].textContent=w.gpus||0;
+      const rd=row.children[3];
+      rd.textContent=`${w.ready}/${w.replicas}`;
+      rd.className=`num ${w.ready>=w.replicas?"ready-ok":"ready-bad"}`;
+      if(w.kind==="Deployment"){
+        row.children[4].innerHTML=`<span class="scale">
+          <button onclick="scale('${w.ns}','${w.name}',${w.replicas-1})">−</button><b>${w.replicas}</b>
+          <button onclick="scale('${w.ns}','${w.name}',${w.replicas+1})">+</button></span>`;
+      }
+    }
+  });
+  tbody.querySelectorAll("tr[data-wl]").forEach(r=>{ if(!seen.has(r.dataset.wl)) r.remove(); });
+}
+
+function drainBlock(d){
+  const pct=d.total?Math.round(100*d.evicted/d.total):5;
+  const lbl=d.phase==="done"?`DRAIN COMPLETE — ${d.evicted} POD(S) EVICTED`
+    : d.phase==="error"?"DRAIN ERROR" : d.phase==="timeout"?"DRAIN TIMEOUT"
+    : `DRAINING ${d.evicted}/${d.total||"…"}`;
+  return `<div class="drain"><div class="dl">${lbl}</div>
+    <div class="bar"><i style="width:${d.phase==="done"?100:pct}%"></i></div>
+    ${d.msg?`<div class="dmsg">${d.msg}</div>`:""}</div>`;}
+
+function nodeCard(n,pods,t,d){
+  const active=d&&(d.phase==="starting"||d.phase==="evicting");
+  const segs=Array.from({length:n.gpus},(_,i)=>
+    `<div class="seg ${i<n.gpu_used?"on":""}"></div>`).join("");
+  const podRows=(pods||[]).map(p=>
+    `<div><span>${p.ns}/${p.name}</span><b>${p.gpus}× GPU</b></div>`).join("");
+  const tierOpts=TIERS.map(x=>`<option ${x===n.tier?"selected":""}>${x}</option>`).join("");
+  const isArmed=armed[n.name];
+  return `<div class="node ${n.unschedulable?"cordoned":""} ${active?"draining":""}" data-name="${n.name}">
+    <h3><span class="dot ${n.ready?"":"bad"}"></span>${n.name}
+      ${n.control?'<span class="badge ctl">CTRL</span>':""}
+      ${n.unschedulable&&!active?'<span class="badge cord">CORDONED</span>':""}
+      ${d&&d.phase==="done"?'<span class="badge drained">DRAINED</span>':""}</h3>
+    <div class="kv">
+      <span>GPU <b>${n.gpu_product}</b></span><span>VRAM <b>${n.vram} GiB</b></span>
+      <span>CC <b>${n.cc}</b></span><span>CPU <b>${n.cpu}</b></span><span>RAM <b>${n.ram} GiB</b></span>
+    </div>
+    ${n.gpus?`<div class="meter">${segs}</div>
+      <div class="mlabel">ALLOCATION ${n.gpu_used} / ${n.gpus}</div>${telemRows(t)}`:
+      `<div class="mlabel" style="margin-top:10px">NO GPUS — ${n.control?"CONTROL DUTY":"CPU NODE"}</div>`}
+    ${podRows?`<div class="pods">${podRows}</div>`:""}
+    ${d&&d.phase!=="cleared"?drainBlock(d):""}
+    <div class="actions">
+      ${n.gpus?`TIER <select data-tier onchange="setTier('${n.name}',this.value)">${tierOpts}</select>`:""}
+      <button data-cordon class="warn" onclick="cordon('${n.name}',${!n.unschedulable})" ${active?"disabled":""}>
+        ${n.unschedulable?"UNCORDON":"CORDON"}</button>
+      <button data-drain class="${isArmed?"armed":"warn"}" onclick="drain('${n.name}')" ${active?"disabled":""}>
+        ${active?"DRAINING…":isArmed?"CONFIRM DRAIN":"DRAIN"}</button>
+    </div></div>`;}
+
+function wlRow(w){
+  return `<tr><td><span style="color:var(--dim)">${w.ns} /</span> ${w.name}</td>
+   <td>${w.kind}</td><td class="num">${w.gpus||0}</td>
+   <td class="num ${w.ready>=w.replicas?"ready-ok":"ready-bad"}">${w.ready}/${w.replicas}</td>
+   <td class="num">${w.kind==="Deployment"?`<span class="scale">
+     <button onclick="scale('${w.ns}','${w.name}',${w.replicas-1})">−</button><b>${w.replicas}</b>
+     <button onclick="scale('${w.ns}','${w.name}',${w.replicas+1})">+</button></span>`:"—"}</td></tr>`;}
+
+let anyDraining=false;
+async function refresh(){
+  if(busy) return;
+  try{
+    const d=await api("/api/overview");
+    $("#err").style.display="none";
+    if(d.demo) $("#demo").style.display="inline";
+    const nodes=d.nodes||[], tel=d.telemetry||{}, dr=d.drains||{};
+    anyDraining=Object.values(dr).some(x=>x.phase==="starting"||x.phase==="evicting");
+    const gpus=d.gpus||[];
+    renderCluster(d.cluster);
+    upsertGpus(gpus);
+    upsertNodes(nodes,d.pods_by_node||{},tel,dr);
+    upsertWorkloads(d.workloads||[]);
+    $("#s-nodes").textContent=nodes.length;
+    $("#s-ctl").textContent=nodes.filter(n=>n.control).length;
+    const tot=gpus.length||nodes.reduce((a,n)=>a+n.gpus,0);
+    const used=gpus.filter(g=>g.allocated).length||nodes.reduce((a,n)=>a+n.gpu_used,0);
+    $("#s-gpu").textContent=`${used} / ${tot}`;
+    const utils=gpus.length?gpus.map(g=>g.util||0):Object.values(tel).flat().map(g=>g.util||0);
+    $("#s-load").textContent=utils.length?Math.round(utils.reduce((a,b)=>a+b,0)/utils.length)+"%":"—";
+  }catch(e){
+    $("#err").style.display="block";
+    $("#err").textContent="LINK DOWN — "+e.message;
+  }
+}
+async function scale(ns,name,r){ if(r<0)return; busy=true;
+  try{await api("/api/scale",{ns,name,replicas:r});toast(`SCALED ${name} → ${r}`);}
+  catch(e){toast("ERR "+e.message);} busy=false; refresh();}
+async function cordon(node,on){ busy=true;
+  try{await api("/api/cordon",{node,on});toast(`${on?"CORDONED":"UNCORDONED"} ${node}`);}
+  catch(e){toast("ERR "+e.message);} busy=false; refresh();}
+async function setTier(node,value){ busy=true;
+  try{await api("/api/label",{node,key:"gpu.homelab/tier",value});toast(`${node} TIER → ${value}`);}
+  catch(e){toast("ERR "+e.message);} busy=false; refresh();}
+async function drain(node){
+  if(!armed[node]){              // step 1: arm
+    armed[node]=true; refresh();
+    setTimeout(()=>{ if(armed[node]){ delete armed[node]; refresh(); } },4000);
+    return;
+  }
+  delete armed[node]; busy=true; // step 2: confirm
+  try{await api("/api/drain",{node});toast(`DRAIN STARTED — ${node}`);}
+  catch(e){toast("ERR "+e.message);} busy=false; refresh();}
+
+setInterval(()=>{$("#s-clock").textContent=new Date().toLocaleTimeString([], {hour12:false});},1000);
+refresh();
+setInterval(refresh,8000);
+setInterval(()=>{ if(anyDraining) refresh(); },1500);   // fast poll while draining
+</script>
+</body>
+</html>

@@ -58,6 +58,7 @@ First run takes several minutes (it's pulling driver/toolkit images). When it fi
 make label-gpus     # tag nodes by GPU tier
 make status         # see GPUs and tiers
 make smoke          # run nvidia-smi inside the cluster as a final check
+make cockpit-ui     # Fleet Cockpit at http://<node-ip>:30880
 ```
 
 ## 6. Add GPU workers

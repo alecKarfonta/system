@@ -8,7 +8,7 @@ S := ./scripts
 .DEFAULT_GOAL := help
 
 .PHONY: help preflight server join-server agent add-node remove-node \
-        label-gpus status stack dashboard ui kubeconfig smoke uninstall config
+        label-gpus status stack dashboard ui cockpit cockpit-ui cockpit-demo cli kubeconfig smoke uninstall config
 
 help: ## Show this help
 	@echo ""
@@ -68,6 +68,18 @@ dashboard: ## Install Headlamp, a web GUI for the cluster (run once)
 
 ui: ## Open the Headlamp web GUI + print your login token
 	@$(S)/dashboard.sh open
+
+cockpit: ## Install/update the Fleet Cockpit (GPU-centric management GUI)
+	@$(S)/cockpit.sh install
+
+cockpit-ui: ## Open the Fleet Cockpit
+	@$(S)/cockpit.sh open
+
+cockpit-demo: ## Preview the Cockpit locally with fake data
+	@$(S)/cockpit.sh demo
+
+cli: ## Install the 'homelab' CLI to /usr/local/bin
+	@sudo ln -sf $(CURDIR)/cli/homelab /usr/local/bin/homelab && echo "Installed: homelab (try 'homelab discover')"
 
 kubeconfig: ## (on a server) Write ~/.kube/config so plain kubectl works
 	@$(S)/kubeconfig.sh

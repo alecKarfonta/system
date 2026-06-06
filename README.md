@@ -1,80 +1,139 @@
 # Homelab GPU Cluster
 
 Turn a pile of mismatched machines into one GPU cluster you can add to, remove from,
-and target — without babysitting each box. Built on **k3s** (lightweight Kubernetes),
-the **NVIDIA GPU Operator**, and **DRA** for per-GPU targeting. Wrapped in a friendly
-`make` interface so you rarely touch raw `kubectl`.
+and target — without babysitting each box. Built on **k3s**, the **NVIDIA GPU Operator**,
+and **DRA** for per-GPU scheduling. Wrapped in a friendly `make` interface so you rarely
+touch raw `kubectl`.
 
-> Designed for people who *know their way around* Kubernetes but don't want to *become a
+> For people who *know their way around* Kubernetes but don't want to *become a
 > Kubernetes administrator* to run a homelab.
+
+<p align="center">
+  <img src="docs/main_ui.png" alt="Fleet Cockpit — cluster overview and per-GPU fleet view" width="900">
+  <br>
+  <em>Fleet Cockpit: cluster health, fleet-wide usage, and one card per GPU.</em>
+</p>
 
 ## What you get
 
-- **One command to add a machine.** `make add-node` prints a line you paste on the new box. It joins, drivers install themselves, its GPUs show up.
-- **No-downtime removal.** `make remove-node NODE=x` drains workloads to other GPUs first, then drops the node.
-- **Target specific GPUs.** Tag GPUs by tier (`training`, `inference`, …) and send workloads to exactly the hardware you want — two ways, beginner and power-user.
-- **HA control plane** so the cluster keeps running while workers come and go.
-- **A web GUI** (Headlamp) for managing the cluster + **Grafana** for per-GPU metrics — no terminal required for day-to-day.
-- **Batteries included:** replicated storage (Longhorn), GPU metrics (DCGM → Grafana), works behind CGNAT via Tailscale.
+| | |
+|---|---|
+| **Add a machine** | `make add-node` prints a one-liner; paste it on the new box. Drivers install, GPUs show up. |
+| **Remove safely** | `make remove-node NODE=x` drains workloads first, then drops the node. |
+| **Target hardware** | Tag GPUs by tier (`training`, `inference`, …) or VRAM/compute cap — not hostnames. |
+| **Fleet Cockpit** | Custom GPU-centric GUI: cluster overview, per-GPU telemetry, scale/cordon/drain/re-tier. |
+| **`homelab` CLI** | Probes GPUs at join time (`nvidia-smi`), auto-labels VRAM, compute cap, tier. |
+| **Batteries** | Longhorn storage, DCGM → Grafana, Headlamp for deep k8s, works over Tailscale. |
 
-## The 10-minute first run
+<p align="center">
+  <img src="docs/nodes.png" alt="Fleet Cockpit — node allocation and telemetry" width="900">
+  <br>
+  <em>Node cards with allocation meters, live DCGM telemetry, and drain/cordon controls.</em>
+</p>
 
-On the machine you want as your main controller:
+## Quick start
+
+On your controller machine:
 
 ```bash
 git clone <this-repo> gpu-cluster && cd gpu-cluster
 make config                 # creates config/cluster.env
 $EDITOR config/cluster.env   # set SERVER_HOST to THIS machine's IP
-make preflight              # sanity-check the box
-make server                 # install the control plane
-make kubeconfig             # so 'kubectl' just works
-make stack                  # GPU Operator + DRA + storage + monitoring + web GUI
-make label-gpus             # auto-tag GPUs by tier
-make status                 # admire your cluster
-make ui                     # open the Headlamp web GUI (login token is printed)
+make preflight
+make server
+make kubeconfig
+make stack                  # GPU Operator + DRA + storage + monitoring + GUIs
+make label-gpus
+make status
+make cockpit-ui             # Fleet Cockpit → http://<node-ip>:30880
 ```
 
-Add a GPU machine:
+Add a GPU worker:
 
 ```bash
-make add-node               # run on the controller; copy the printed line...
-# ...then on the NEW machine, after cloning the repo + copying cluster.env:
+make add-node               # on controller — copy the printed join line
+# on the new machine:
 JOIN_TOKEN='...' make agent
-make label-gpus             # back on the controller, re-tag
+make label-gpus             # back on controller
 ```
 
-Send a job to your big GPUs:
+Send work to your big GPUs:
 
 ```bash
 kubectl apply -f manifests/examples/02-training-job-nodeselector.yaml
 ```
 
+## Fleet Cockpit
+
+The GUI you actually want for day-to-day GPU ops — not another generic k8s dashboard.
+
+- **Cluster overview** — fleet health, total GPUs/VRAM/CPU/RAM/power, utilization bars, tier breakdown, active issues
+- **Per-GPU cards** — utilization ring, VRAM, temp, power, processes/pods on each card
+- **Node management** — allocation meters, live DCGM telemetry, cordon, PDB-respecting drain, re-tier
+- **Workloads** — scale your Deployments with +/−
+
+```bash
+make cockpit          # install / update in the cluster
+make cockpit-ui       # port-forward to localhost
+make cockpit-demo     # preview locally with fake data (no cluster needed)
+```
+
+Stable URL on your LAN: **`http://<any-node-ip>:30880`**
+
+## `homelab` CLI
+
+Stdlib Python, no pip. Hardware-aware node management:
+
+```bash
+make cli
+homelab doctor --fix
+homelab discover            # GPUs, VRAM, compute cap, auto-tier
+homelab join worker --token 'K10...'
+homelab status              # fleet table
+```
+
+Workloads can target capabilities, not machine names:
+
+```yaml
+nodeSelector:
+  gpu.homelab/vram-gb: "24"
+  gpu.homelab/tier: training
+```
+
 ## Layout
 
 ```
-config/      cluster.env  — the ONE file you edit
-scripts/     all the logic (install, join, remove, label, status, stack)
-manifests/   gpu-operator values, DRA DeviceClasses, ready-to-run examples
-docs/        step-by-step guides + glossary + troubleshooting
-Makefile     the friendly command menu — run 'make help'
+cli/         homelab CLI (discover, join, status) — make cli
+cockpit/     Fleet Cockpit source (Python + vanilla JS, no build step)
+config/      cluster.env — the ONE file you edit
+scripts/     install, join, remove, label, stack, cockpit
+manifests/   GPU Operator, DRA DeviceClasses, cockpit, examples
+docs/        guides, screenshots, troubleshooting
+Makefile     friendly command menu — make help
 ```
 
-## Where to read next
+## Docs
 
-- New to this? → `docs/01-overview.md` then `docs/02-install-walkthrough.md`
-- "How do I send work to *this* GPU?" → `docs/03-gpu-targeting.md`
-- Adding/removing machines → `docs/04-managing-nodes.md`
-- Prefer a UI over the terminal? → `docs/06-gui-and-monitoring.md`
-- Something's broken → `docs/05-troubleshooting.md`
-- "What does this Kubernetes word mean?" → `docs/glossary.md`
+| Topic | Guide |
+|-------|-------|
+| Overview | [`docs/01-overview.md`](docs/01-overview.md) |
+| Install walkthrough | [`docs/02-install-walkthrough.md`](docs/02-install-walkthrough.md) |
+| GPU targeting | [`docs/03-gpu-targeting.md`](docs/03-gpu-targeting.md) |
+| Managing nodes | [`docs/04-managing-nodes.md`](docs/04-managing-nodes.md) |
+| GUIs & monitoring | [`docs/06-gui-and-monitoring.md`](docs/06-gui-and-monitoring.md) |
+| CLI & Fleet Cockpit | [`docs/07-cli-and-cockpit.md`](docs/07-cli-and-cockpit.md) |
+| Troubleshooting | [`docs/05-troubleshooting.md`](docs/05-troubleshooting.md) |
+| Glossary | [`docs/glossary.md`](docs/glossary.md) |
 
 ## Requirements
 
-- Machines running Ubuntu/Debian (others may work, untested).
-- NVIDIA GPUs. For consumer cards (30xx/40xx/50xx), install the host driver yourself first (`sudo apt install nvidia-driver-XXX`) and keep `GPU_OPERATOR_MANAGES_DRIVER=0`.
-- Kubernetes ≥ 1.34 for the DRA per-GPU targeting (k3s `stable` channel is fine). Node-label targeting works on any version.
+- Ubuntu/Debian machines (others untested).
+- NVIDIA GPUs. Consumer cards (30xx/40xx/50xx): install the host driver first
+  (`sudo apt install nvidia-driver-XXX`) and keep `GPU_OPERATOR_MANAGES_DRIVER=0`.
+- Kubernetes ≥ 1.34 for DRA per-GPU targeting (k3s `stable` is fine). Node-label
+  targeting works on any version.
 
 ## Legacy
 
-Pre-k3s shell scripts, docker-compose stacks, and one-off deployments are archived in
+Pre-k3s scripts, docker-compose stacks, and one-off deployments live in
 [`manual_deployments/`](manual_deployments/README.md). Reference only — do not extend.

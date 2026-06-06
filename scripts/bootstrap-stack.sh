@@ -87,5 +87,10 @@ if [[ "${INSTALL_DASHBOARD:-0}" == "1" ]]; then
   "${REPO_ROOT}/scripts/dashboard.sh" install
 fi
 
+# --- Fleet Cockpit (GPU-centric management GUI) ------------------------------
+if [[ "${INSTALL_COCKPIT:-0}" == "1" ]]; then
+  "${REPO_ROOT}/scripts/cockpit.sh" install
+fi
+
 hr
 ok "Stack bootstrap complete. Run 'make label-gpus' then 'make status'."
