@@ -13,6 +13,7 @@ Runs on a fresh Ubuntu/Debian box with nothing but python3 (stdlib only).
   homelab remove <node>         gracefully drain + remove a node (no downtime)
   homelab label <node> k=v ...  set gpu.homelab/* labels on a node
   homelab stack                 install GPU Operator + DRA + storage + monitoring + UIs
+  homelab driver install        install NVIDIA host driver (local or --node / --host)
   homelab ui                    open Headlamp (generic k8s GUI)
   homelab cockpit               open the Fleet Cockpit (GPU-centric GUI)
 """
@@ -295,6 +296,18 @@ def cmd_stack(a):   sh("bootstrap-stack.sh")
 def cmd_ui(a):      sh("dashboard.sh", "open")
 def cmd_cockpit(a): sh("cockpit.sh", "open")
 
+def cmd_driver(a):
+    if a.install:
+        if a.node or a.host:
+            env = os.environ.copy()
+            if a.node: env["NODE"] = a.node
+            if a.host: env["HOST"] = a.host
+            if a.user: env["USER"] = a.user
+            if a.reboot: env["REBOOT"] = "1"
+            os.execv("/bin/bash", ["bash", str(REPO / "scripts" / "install-driver-node.sh")])
+        sh("install-nvidia-driver.sh")
+    die("Usage: homelab driver install [--node NAME | --host IP] [--user alec] [--reboot]")
+
 # ---------------------------------------------------------------- main
 def main():
     p = argparse.ArgumentParser(prog="homelab", description=__doc__,
@@ -313,6 +326,14 @@ def main():
     s.add_parser("stack").set_defaults(f=cmd_stack)
     s.add_parser("ui").set_defaults(f=cmd_ui)
     s.add_parser("cockpit").set_defaults(f=cmd_cockpit)
+    dr = s.add_parser("driver", help="NVIDIA host driver management")
+    di = dr.add_subparsers(dest="driver_cmd", required=True)
+    ins = di.add_parser("install", help="install host driver (local or via SSH)")
+    ins.add_argument("--node", help="k8s node name (uses InternalIP)")
+    ins.add_argument("--host", help="SSH target IP/hostname")
+    ins.add_argument("--user", help="SSH user (default from COCKPIT_SSH_USER or root)")
+    ins.add_argument("--reboot", action="store_true", help="reboot remote node if required")
+    ins.set_defaults(f=cmd_driver, install=True)
     a = p.parse_args(); a.f(a)
 
 if __name__ == "__main__":

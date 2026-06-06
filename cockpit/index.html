@@ -68,7 +68,8 @@ h1 small{display:block;font-size:10px;letter-spacing:.34em;color:var(--dim);font
 .cr span{display:block;font-size:8px;letter-spacing:.22em;color:var(--dim);margin-bottom:5px}
 .cr b{font-family:var(--disp);font-size:18px;color:var(--ink);line-height:1}
 .cr small{display:block;font-size:9px;color:var(--dim);margin-top:4px;letter-spacing:.06em}
-.cluster-usage{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:12px}
+.cluster-usage{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:12px}
+@media(max-width:900px){.cluster-usage{grid-template-columns:repeat(2,1fr)}}
 .cu span{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.18em;
   color:var(--dim);margin-bottom:5px}
 .cu b{color:var(--ink);font-weight:500}
@@ -164,7 +165,21 @@ h1 small{display:block;font-size:10px;letter-spacing:.34em;color:var(--dim);font
   border-color:var(--phos);box-shadow:0 0 12px rgba(70,242,160,.35) inset}
 .seg.on::after{content:"";position:absolute;inset:0;
   background:repeating-linear-gradient(135deg,rgba(0,0,0,.18) 0 4px,transparent 4px 8px)}
+.seg.pending{background:#141a16;border-color:#2a3530;opacity:.55}
 .mlabel{font-size:9px;letter-spacing:.2em;color:var(--dim);margin-top:4px}
+.mlabel.gpu-pending{color:var(--amber)}
+.badge.drv{color:var(--amber);border-color:#4a3a18}
+
+/* node storage */
+.storage{margin-top:9px;border-top:1px dashed var(--line);padding-top:8px}
+.slabel{font-size:9px;letter-spacing:.2em;color:var(--dim);margin-bottom:5px;display:flex;
+  justify-content:space-between;align-items:center}
+.slabel .warn{color:var(--amber)}
+.sbar{height:9px;border:1px solid var(--line);background:#0a120e;position:relative;overflow:hidden;margin-bottom:4px}
+.sbar i{position:absolute;inset:0;right:auto;transition:width .8s ease}
+.smeta{font-size:10px;color:var(--dim);letter-spacing:.04em}
+.sdisk{font-size:9.5px;color:var(--dim);padding:2px 0;display:flex;justify-content:space-between}
+.sdisk b{color:var(--ink);font-weight:500}
 
 /* per-GPU telemetry */
 .telem{margin-top:9px;border-top:1px dashed var(--line);padding-top:8px;display:grid;gap:5px}
@@ -214,6 +229,31 @@ tr:hover td{background:var(--phos-soft)}
 #toast.show{opacity:1;transform:none}
 #err{color:var(--red);font-size:11px;margin-top:14px;display:none}
 
+/* add node */
+.add-node{background:linear-gradient(165deg,#0e1812,var(--panel) 55%,#0a100d);
+  border:1px solid var(--line);padding:16px 18px 14px;margin-bottom:4px;animation:rise .5s ease both}
+.add-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.add-tabs button{font-family:var(--disp);font-size:10px;letter-spacing:.14em;padding:6px 12px;
+  background:#0a120e;border:1px solid var(--line);color:var(--dim)}
+.add-tabs button.on{color:var(--phos);border-color:var(--phos);box-shadow:0 0 12px rgba(70,242,160,.12)}
+.add-panel{display:none}.add-panel.on{display:block}
+.add-hint{font-size:10px;color:var(--dim);letter-spacing:.06em;line-height:1.5;margin-bottom:10px}
+.add-cmd{background:#0a120e;border:1px solid #152219;padding:10px 12px;font-size:10.5px;
+  color:var(--phos);word-break:break-all;margin:8px 0;position:relative;padding-right:72px}
+.add-cmd button.copy{position:absolute;top:8px;right:8px}
+.add-form{display:grid;gap:10px;max-width:520px}
+.add-form label{font-size:9px;letter-spacing:.18em;color:var(--dim);display:grid;gap:4px}
+.add-form input,.add-form textarea,.add-form select{
+  font-family:var(--mono);font-size:11px;background:#0a120e;color:var(--ink);
+  border:1px solid var(--line);padding:7px 9px}
+.add-form textarea{min-height:88px;resize:vertical}
+.add-jobs{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px;display:grid;gap:6px}
+.add-job{font-size:10px;padding:8px 10px;border:1px solid #152219;background:#0a120e}
+.add-job.done{border-color:#1d4d35}.add-job.error{border-color:#5a2a2a}
+.add-job .aj-phase{font-family:var(--disp);letter-spacing:.12em;color:var(--amber)}
+.add-job.done .aj-phase{color:var(--phos)}.add-job.error .aj-phase{color:var(--red)}
+.add-warn{font-size:9px;color:var(--amber);letter-spacing:.08em;margin-top:8px}
+
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .node.new:nth-child(2){animation-delay:.06s}.node.new:nth-child(3){animation-delay:.12s}
@@ -245,6 +285,58 @@ tr:hover td{background:var(--phos-soft)}
 
 <div class="sec">NODES · ALLOCATION · TELEMETRY</div>
 <div class="grid" id="nodes"></div>
+
+<div class="sec">ADD NODE</div>
+<div class="add-node" id="add-node">
+  <div class="add-tabs">
+    <button type="button" class="on" data-tab="manual" onclick="addTab('manual')">① COPY COMMAND</button>
+    <button type="button" data-tab="watch" onclick="addTab('watch')">② WATCH FOR JOIN</button>
+    <button type="button" data-tab="ssh" onclick="addTab('ssh')">③ SSH REMOTE JOIN</button>
+  </div>
+  <div class="add-panel on" id="tab-manual">
+    <div class="add-hint" id="join-prereq">Loading join commands…</div>
+    <div class="add-hint">GPU worker (most common):</div>
+    <div class="add-cmd" id="cmd-worker">—<button type="button" class="copy" onclick="copyJoin('worker')">COPY</button></div>
+    <div class="add-hint">With homelab CLI (auto-labels VRAM, compute cap, tier):</div>
+    <div class="add-cmd" id="cmd-homelab">—<button type="button" class="copy" onclick="copyJoin('homelab')">COPY</button></div>
+    <div class="add-hint">Raw k3s one-liner (no repo on the new box):</div>
+    <div class="add-cmd" id="cmd-raw">—<button type="button" class="copy" onclick="copyJoin('raw')">COPY</button></div>
+    <div class="add-warn">Join token is a cluster credential — don't paste into public chats.</div>
+  </div>
+  <div class="add-panel" id="tab-watch">
+    <div class="add-hint">Run the join command on the new machine, then watch for it here. Leave hostname blank to accept any new node.</div>
+    <div class="add-form">
+      <label>EXPECTED HOSTNAME (optional)
+        <input id="watch-name" placeholder="e.g. xeon"></label>
+      <button type="button" onclick="startWatch()">START WATCHING</button>
+    </div>
+  </div>
+  <div class="add-panel" id="tab-ssh">
+    <div class="add-hint" id="ssh-hint">Cockpit SSHes in, installs k3s, and auto-labels GPUs. Target user needs passwordless sudo.</div>
+    <div class="add-form">
+      <label>HOST / IP<input id="ssh-host" placeholder="192.168.1.50"></label>
+      <label>SSH USER<input id="ssh-user" value="alec" placeholder="alec"></label>
+      <label>SSH PORT<input id="ssh-port" value="22"></label>
+      <label>ROLE<select id="ssh-role"><option value="worker">GPU worker</option>
+        <option value="server">Control plane (HA)</option></select></label>
+      <label>AUTH<select id="ssh-auth" onchange="toggleSshAuth()">
+        <option value="password">Password</option>
+        <option value="key">SSH key</option></select></label>
+      <label id="ssh-pass-wrap">SSH PASSWORD
+        <input type="password" id="ssh-password" autocomplete="off" placeholder="user login password"></label>
+      <label id="ssh-key-opt" style="flex-direction:row;align-items:center;gap:8px;letter-spacing:.1em;display:none">
+        <input type="checkbox" id="ssh-use-saved" checked style="width:auto" onchange="toggleSshAuth()"> USE CLUSTER SSH KEY</label>
+      <label id="ssh-key-wrap" style="display:none">PRIVATE KEY (paste full key, BEGIN…END)
+        <textarea id="ssh-key" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" onclick="testSsh()">TEST SSH</button>
+        <button type="button" onclick="startSshJoin()">JOIN VIA SSH</button>
+      </div>
+    </div>
+    <div class="add-warn">Password is sent once over your LAN and not stored. User needs sudo access (same password is fine). NVIDIA driver required on consumer GPUs if GPU_OPERATOR_MANAGES_DRIVER=0.</div>
+  </div>
+  <div class="add-jobs" id="add-jobs"></div>
+</div>
 
 <div class="sec">WORKLOADS</div>
 <table>
@@ -280,12 +372,40 @@ const healthSub=(h,c)=>{
   return "All nodes ready · telemetry live";};
 const fmtKw=w=>w>=1000?`${(w/1000).toFixed(1)} kW`:`${w} W`;
 
+function storageBlock(s){
+  if(!s) return "";
+  const lh=s.longhorn, ep=s.ephemeral_gib;
+  if(!lh||!lh.total_gib){
+    return ep?`<div class="storage" data-storage>
+      <div class="slabel">STORAGE</div>
+      <div class="smeta">Ephemeral budget <b>${ep} GiB</b>${s.disk_pressure?' · <span class="warn">DISK PRESSURE</span>':""}</div></div>`:"";
+  }
+  const pct=lh.pct||0, cls=uClass(pct);
+  const disks=(lh.disks||[]).map(d=>{
+    const used=(d.total_gib-d.avail_gib).toFixed(1);
+    return `<div class="sdisk"><span>${d.path||d.name}</span><b>${used} / ${d.total_gib} GiB</b></div>`;
+  }).join("");
+  return `<div class="storage" data-storage>
+    <div class="slabel"><span>LONGHORN</span>${s.disk_pressure?'<span class="warn">DISK PRESSURE</span>':""}</div>
+    <div class="sbar"><i class="${cls}" style="width:${pct}%"></i></div>
+    <div class="smeta"><b>${lh.used_gib}</b> / ${lh.total_gib} GiB used · ${lh.avail_gib} GiB free
+      ${lh.scheduled_gib?` · ${lh.scheduled_gib} GiB scheduled`:""}</div>
+    ${disks}</div>`;}
+
+function patchStorage(el, s){
+  const box=el.querySelector("[data-storage]");
+  const html=storageBlock(s);
+  if(!html){ box?.remove(); return; }
+  if(box) box.outerHTML=html;
+  else el.querySelector(".kv")?.insertAdjacentHTML("afterend", html);
+}
+
 function renderCluster(c){
   if(!c) return;
   const el=$("#cluster"), h=c.health||"healthy";
   el.className=`cluster ${h}`;
   const r=c.resources||{}, u=c.usage||{}, n=r.nodes||{};
-  const vram=r.vram_gib||{};
+  const vram=r.vram_gib||{}, stor=r.storage_gib||{};
   const tierTags=Object.entries(c.tiers||{}).map(([t,n])=>
     `<span class="tag">${t.toUpperCase()} <b>${n}</b></span>`).join("");
   const issues=(c.issues||[]).map(i=>
@@ -308,6 +428,8 @@ function renderCluster(c){
           <small>${u.vram_pct??0}% used</small></div>
         <div class="cr"><span>CPU</span><b>${r.cpu_cores??"—"}</b><small>allocatable cores</small></div>
         <div class="cr"><span>RAM</span><b>${r.ram_gib??"—"} GiB</b><small>fleet memory</small></div>
+        <div class="cr"><span>STORAGE</span><b>${stor.used??"—"} / ${stor.total??"—"} GiB</b>
+          <small>${stor.nodes??0} nodes · Longhorn</small></div>
         <div class="cr"><span>POWER</span><b>${fmtKw(r.power_w||0)}</b>
           <small>${c.telemetry?"live draw":"no telemetry"}</small></div>
         <div class="cr"><span>NODES</span><b>${n.ready??"—"} / ${n.total??"—"}</b>
@@ -323,6 +445,8 @@ function renderCluster(c){
         <div class="bar"><i class="u-ok" style="width:${u.gpu_alloc_pct||0}%"></i></div></div>
       <div class="cu"><span>VRAM USAGE <b>${u.vram_pct??0}%</b></span>
         <div class="bar"><i class="${uClass(u.vram_pct||0)}" style="width:${u.vram_pct||0}%"></i></div></div>
+      <div class="cu"><span>LONGHORN STORAGE <b>${u.storage_pct??0}%</b></span>
+        <div class="bar"><i class="${uClass(u.storage_pct||0)}" style="width:${u.storage_pct||0}%"></i></div></div>
     </div>
     <div class="cluster-foot">
       ${tierTags}
@@ -381,6 +505,8 @@ function gpuCard(g){
 function patchGpu(el, g){
   const u=Math.round(g.util||0), cls=uClass(u);
   el.className=`gpu-card ${u>=90?"hot":u>=70?"warn":""} ${g.allocated?"":"idle"} ${g.cordoned?"cordoned":""}`;
+  const prod=el.querySelector(".gc-product");
+  if(prod) prod.textContent=g.product;
   const ring=el.querySelector(".gc-ring");
   if(ring){
     ring.style.setProperty("--pct", u);
@@ -483,32 +609,32 @@ function patchNode(el, n, pods, t, d){
     if(d&&d.phase==="done"){
       if(!drained){ h3.insertAdjacentHTML("beforeend",'<span class="badge drained">DRAINED</span>'); }
     } else drained?.remove();
+    let drv=h3.querySelector(".badge.drv");
+    if(n.driver_pending){
+      if(!drv) h3.insertAdjacentHTML("beforeend",'<span class="badge drv">DRIVER</span>');
+    } else drv?.remove();
   }
   const kv=el.querySelector(".kv");
   if(kv) kv.innerHTML=
-    `<span>GPU <b>${n.gpu_product}</b></span><span>VRAM <b>${n.vram} GiB</b></span>`+
-    `<span>CC <b>${n.cc}</b></span><span>CPU <b>${n.cpu}</b></span><span>RAM <b>${n.ram} GiB</b></span>`;
-  const meter=el.querySelector(".meter");
-  if(n.gpus){
-    if(!meter){
-      const noGpu=el.querySelector(".mlabel");
-      if(noGpu) noGpu.outerHTML=
-        `<div class="meter">${Array.from({length:n.gpus},(_,i)=>
-          `<div class="seg ${i<n.gpu_used?"on":""}"></div>`).join("")}</div>`+
-        `<div class="mlabel">ALLOCATION ${n.gpu_used} / ${n.gpus}</div>`;
-    } else {
-      let segs=[...meter.querySelectorAll(".seg")];
-      if(segs.length!==n.gpus){
-        meter.innerHTML=Array.from({length:n.gpus},(_,i)=>
-          `<div class="seg ${i<n.gpu_used?"on":""}"></div>`).join("");
-        segs=[...meter.querySelectorAll(".seg")];
-      }
-      segs.forEach((seg,i)=>seg.classList.toggle("on",i<n.gpu_used));
-      const lbl=el.querySelector(".mlabel");
-      if(lbl) lbl.textContent=`ALLOCATION ${n.gpu_used} / ${n.gpus}`;
+    `<span>GPU <b>${fmtGpuName(n.gpu_product)}</b></span><span>VRAM <b>${fmtNodeGiB(n.vram)}</b></span>`+
+    `<span>CC <b>${n.cc==="-"?"—":n.cc}</b></span><span>CPU <b>${n.cpu}</b></span><span>RAM <b>${n.ram} GiB</b></span>`;
+  patchStorage(el, n.storage);
+  const gpuSec=el.querySelector("[data-gpu-section]");
+  if(gpuSec) gpuSec.innerHTML=gpuSection(n,t);
+  const tierSel=el.querySelector("[data-tier]");
+  if(n.gpus && !tierSel){
+    el.querySelector(".actions")?.insertAdjacentHTML("afterbegin",
+      `TIER <select data-tier onchange="setTier('${n.name}',this.value)">${
+        TIERS.map(x=>`<option ${x===n.tier?"selected":""}>${x}</option>`).join("")}</select>`);
+  } else if(!n.gpus) tierSel?.remove();
+  if(tierSel && tierSel.value!==n.tier) tierSel.value=n.tier;
+  let drvBtn=el.querySelector("[data-driver]");
+  if(n.driver_pending&&!driverOperatorManages){
+    if(!drvBtn){
+      el.querySelector(".actions")?.insertAdjacentHTML("beforeend",
+        `<button data-driver class="warn" onclick="installDriver('${n.name}','${n.internal_ip||""}')">INSTALL DRIVER</button>`);
     }
-    patchTelem(el,t);
-  }
+  } else drvBtn?.remove();
   const podsEl=el.querySelector(".pods");
   const podRows=(pods||[]).map(p=>
     `<div><span>${p.ns}/${p.name}</span><b>${p.gpus}× GPU</b></div>`).join("");
@@ -535,8 +661,6 @@ function patchNode(el, n, pods, t, d){
     drainBtn.textContent=active?"DRAINING…":isArmed?"CONFIRM DRAIN":"DRAIN";
     drainBtn.onclick=()=>drain(n.name);
   }
-  const tierSel=el.querySelector("[data-tier]");
-  if(tierSel && tierSel.value!==n.tier) tierSel.value=n.tier;
 }
 
 function upsertNodes(nodes, podsByNode, tel, drains){
@@ -598,10 +722,24 @@ function drainBlock(d){
     <div class="bar"><i style="width:${d.phase==="done"?100:pct}%"></i></div>
     ${d.msg?`<div class="dmsg">${d.msg}</div>`:""}</div>`;}
 
+function fmtGpuName(p){ return !p||p==="-"?"—":p.replace(/-/g," "); }
+function fmtNodeGiB(v){ return !v||v==="-"?"—":`${v} GiB`; }
+function gpuSection(n,t){
+  if(n.driver_pending&&n.gpus){
+    const segs=Array.from({length:n.gpus},()=>`<div class="seg pending"></div>`).join("");
+    return `<div class="meter pending">${segs}</div>
+      <div class="mlabel gpu-pending">${n.gpus} GPU(S) · DRIVER NOT INSTALLED</div>`;
+  }
+  if(n.gpus){
+    const segs=Array.from({length:n.gpus},(_,i)=>`<div class="seg ${i<n.gpu_used?"on":""}"></div>`).join("");
+    return `<div class="meter">${segs}</div>
+      <div class="mlabel">ALLOCATION ${n.gpu_used} / ${n.gpus}</div>${telemRows(t)}`;
+  }
+  return `<div class="mlabel" style="margin-top:10px">NO GPUS — ${n.control?"CONTROL DUTY":"CPU NODE"}</div>`;
+}
+
 function nodeCard(n,pods,t,d){
   const active=d&&(d.phase==="starting"||d.phase==="evicting");
-  const segs=Array.from({length:n.gpus},(_,i)=>
-    `<div class="seg ${i<n.gpu_used?"on":""}"></div>`).join("");
   const podRows=(pods||[]).map(p=>
     `<div><span>${p.ns}/${p.name}</span><b>${p.gpus}× GPU</b></div>`).join("");
   const tierOpts=TIERS.map(x=>`<option ${x===n.tier?"selected":""}>${x}</option>`).join("");
@@ -609,19 +747,20 @@ function nodeCard(n,pods,t,d){
   return `<div class="node ${n.unschedulable?"cordoned":""} ${active?"draining":""}" data-name="${n.name}">
     <h3><span class="dot ${n.ready?"":"bad"}"></span>${n.name}
       ${n.control?'<span class="badge ctl">CTRL</span>':""}
+      ${n.driver_pending?'<span class="badge drv">DRIVER</span>':""}
       ${n.unschedulable&&!active?'<span class="badge cord">CORDONED</span>':""}
       ${d&&d.phase==="done"?'<span class="badge drained">DRAINED</span>':""}</h3>
     <div class="kv">
-      <span>GPU <b>${n.gpu_product}</b></span><span>VRAM <b>${n.vram} GiB</b></span>
-      <span>CC <b>${n.cc}</b></span><span>CPU <b>${n.cpu}</b></span><span>RAM <b>${n.ram} GiB</b></span>
+      <span>GPU <b>${fmtGpuName(n.gpu_product)}</b></span><span>VRAM <b>${fmtNodeGiB(n.vram)}</b></span>
+      <span>CC <b>${n.cc==="-"?"—":n.cc}</b></span><span>CPU <b>${n.cpu}</b></span><span>RAM <b>${n.ram} GiB</b></span>
     </div>
-    ${n.gpus?`<div class="meter">${segs}</div>
-      <div class="mlabel">ALLOCATION ${n.gpu_used} / ${n.gpus}</div>${telemRows(t)}`:
-      `<div class="mlabel" style="margin-top:10px">NO GPUS — ${n.control?"CONTROL DUTY":"CPU NODE"}</div>`}
+    ${storageBlock(n.storage)}
+    <div data-gpu-section>${gpuSection(n,t)}</div>
     ${podRows?`<div class="pods">${podRows}</div>`:""}
     ${d&&d.phase!=="cleared"?drainBlock(d):""}
     <div class="actions">
       ${n.gpus?`TIER <select data-tier onchange="setTier('${n.name}',this.value)">${tierOpts}</select>`:""}
+      ${n.driver_pending&&!driverOperatorManages?`<button data-driver class="warn" onclick="installDriver('${n.name}','${n.internal_ip||""}')">INSTALL DRIVER</button>`:""}
       <button data-cordon class="warn" onclick="cordon('${n.name}',${!n.unschedulable})" ${active?"disabled":""}>
         ${n.unschedulable?"UNCORDON":"CORDON"}</button>
       <button data-drain class="${isArmed?"armed":"warn"}" onclick="drain('${n.name}')" ${active?"disabled":""}>
@@ -636,6 +775,134 @@ function wlRow(w){
      <button onclick="scale('${w.ns}','${w.name}',${w.replicas-1})">−</button><b>${w.replicas}</b>
      <button onclick="scale('${w.ns}','${w.name}',${w.replicas+1})">+</button></span>`:"—"}</td></tr>`;}
 
+let joinData={}, anyAddJobs=false, anyDriverJobs=false, driverOperatorManages=false;
+function addTab(t){
+  document.querySelectorAll(".add-tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
+  document.querySelectorAll(".add-panel").forEach(p=>p.classList.toggle("on",p.id==="tab-"+t));
+}
+function sshPayload(){
+  const mode=$("#ssh-auth").value;
+  const p={host:$("#ssh-host").value.trim(),user:$("#ssh-user").value.trim()||"root",
+    port:parseInt($("#ssh-port").value,10)||22,role:$("#ssh-role").value,
+    use_password:mode==="password"};
+  if(mode==="password") p.password=$("#ssh-password").value;
+  else{
+    p.use_saved_key=$("#ssh-use-saved").checked;
+    if(!p.use_saved_key) p.key=$("#ssh-key").value;
+  }
+  return p;
+}
+function toggleSshAuth(){
+  const pw=$("#ssh-auth").value==="password";
+  $("#ssh-pass-wrap").style.display=pw?"grid":"none";
+  $("#ssh-key-opt").style.display=pw?"none":"flex";
+  $("#ssh-key-wrap").style.display=pw?"none":($("#ssh-use-saved").checked?"none":"grid");
+  $("#ssh-hint").textContent=pw?
+    "Log in with username + password. Cockpit uses it for SSH and sudo — not saved.":
+    ($("#ssh-use-saved").checked&&joinData.ssh_key_available?
+      "Cluster SSH key loaded (from make cockpit).":
+      "Paste a private key or run make cockpit to save your cluster key.");
+}
+async function loadJoin(){
+  try{
+    joinData=await api("/api/join");
+    const ok=joinData.configured;
+    $("#join-prereq").textContent=ok?(joinData.prereq||"On the new machine:"):
+      (joinData.setup_hint||"Join token not configured — run make cockpit to enable Add Node.");
+    if(joinData.ssh_key_available){
+      $("#ssh-use-saved").checked=true;
+    }
+    toggleSshAuth();
+    $("#cmd-worker").innerHTML=(ok?joinData.worker_cmd:"—")+
+      `<button type="button" class="copy" onclick="copyJoin('worker')">COPY</button>`;
+    $("#cmd-homelab").innerHTML=(ok?joinData.homelab_cmd:"—")+
+      `<button type="button" class="copy" onclick="copyJoin('homelab')">COPY</button>`;
+    $("#cmd-raw").innerHTML=(ok?joinData.raw_cmd:"—")+
+      `<button type="button" class="copy" onclick="copyJoin('raw')">COPY</button>`;
+  }catch(e){$("#join-prereq").textContent="Could not load join info — "+e.message;}
+}
+function copyJoin(kind){
+  const m={worker:"worker_cmd",homelab:"homelab_cmd",raw:"raw_cmd"};
+  const t=joinData[m[kind]]; if(!t) return toast("NOT CONFIGURED");
+  navigator.clipboard.writeText(t).then(()=>toast("COPIED")).catch(()=>toast("COPY FAILED"));
+}
+async function pollAddJobs(){
+  try{
+    const [jobs, djobs]=await Promise.all([
+      api("/api/add-node/jobs"),
+      api("/api/driver/jobs").catch(()=>({})),
+    ]);
+    const el=$("#add-jobs");
+    const entries=[...Object.values(jobs||{}), ...Object.values(djobs||{})];
+    anyAddJobs=Object.values(jobs||{}).some(j=>!["done","error","timeout"].includes(j.phase));
+    anyDriverJobs=Object.values(djobs||{}).some(j=>!["done","error","timeout"].includes(j.phase));
+    if(!entries.length){el.innerHTML=""; return;}
+    el.innerHTML=entries.sort((a,b)=>b.ts-a.ts).map(j=>{
+      const cls=j.phase==="done"?"done":(j.phase==="error"||j.phase==="timeout")?"error":"";
+      const lbl=j.id?.startsWith("driver-")?`DRIVER ${j.node||j.host}`:
+        j.method==="ssh"?`SSH ${j.host}`:`WATCH ${j.expected||"any"}`;
+      return `<div class="add-job ${cls}"><span class="aj-phase">${j.phase.toUpperCase()}</span> · ${lbl}
+        ${j.node?` → <b style="color:var(--phos)">${j.node}</b>`:""}
+        <div style="color:var(--dim);margin-top:3px">${j.msg||""}</div></div>`;
+    }).join("");
+    if(entries.some(j=>j.phase==="done")) refresh();
+  }catch(e){}
+}
+async function installDriver(node, ip){
+  const p=sshPayload();
+  p.node=node;
+  p.host=(ip||p.host||"").trim();
+  if(!p.host) return toast("NO HOST — enter IP in SSH tab or wait for node IP");
+  if(p.use_password&&!p.password) return toast("SSH PASSWORD REQUIRED");
+  if(!p.use_password&&!p.use_saved_key&&!p.key?.trim()) return toast("SSH KEY REQUIRED");
+  p.reboot=true;
+  busy=true;
+  try{
+    await api("/api/driver/install",p);
+    toast(`DRIVER INSTALL STARTED — ${node||p.host}`);
+    if(!p.use_saved_key) $("#ssh-key").value="";
+    if(p.use_password) $("#ssh-password").value="";
+    addTab("ssh"); pollAddJobs();
+  }catch(e){toast("ERR "+e.message);}
+  busy=false;
+}
+async function startWatch(){
+  busy=true;
+  try{
+    const expected=$("#watch-name").value.trim();
+    await api("/api/add-node/watch",{expected,role:"worker"});
+    toast(expected?`WATCHING FOR ${expected}`:"WATCHING FOR NEW NODE");
+    addTab("watch"); pollAddJobs();
+  }catch(e){toast("ERR "+e.message);}
+  busy=false;
+}
+async function testSsh(){
+  const p=sshPayload();
+  if(!p.host) return toast("HOST REQUIRED");
+  if(p.use_password&&!p.password) return toast("SSH PASSWORD REQUIRED");
+  if(!p.use_password&&!p.use_saved_key&&!p.key?.trim()) return toast("SSH KEY REQUIRED");
+  busy=true;
+  try{
+    const r=await api("/api/add-node/ssh-test",p);
+    toast(r.msg||"SSH OK");
+  }catch(e){toast("ERR "+e.message);}
+  busy=false;
+}
+async function startSshJoin(){
+  const p=sshPayload();
+  if(!p.host) return toast("HOST REQUIRED");
+  if(p.use_password&&!p.password) return toast("SSH PASSWORD REQUIRED");
+  if(!p.use_password&&!p.use_saved_key&&!p.key?.trim()) return toast("SSH KEY REQUIRED");
+  busy=true;
+  try{
+    await api("/api/add-node/ssh",p);
+    toast(`SSH JOIN STARTED — ${p.host}`);
+    if(!p.use_saved_key) $("#ssh-key").value="";
+    if(p.use_password) $("#ssh-password").value="";
+    addTab("ssh"); pollAddJobs();
+  }catch(e){toast("ERR "+e.message);}
+  busy=false;
+}
 let anyDraining=false;
 async function refresh(){
   if(busy) return;
@@ -644,6 +911,7 @@ async function refresh(){
     $("#err").style.display="none";
     if(d.demo) $("#demo").style.display="inline";
     const nodes=d.nodes||[], tel=d.telemetry||{}, dr=d.drains||{};
+    driverOperatorManages=!!(d.driver&&d.driver.operator_manages);
     anyDraining=Object.values(dr).some(x=>x.phase==="starting"||x.phase==="evicting");
     const gpus=d.gpus||[];
     renderCluster(d.cluster);
@@ -682,9 +950,12 @@ async function drain(node){
   catch(e){toast("ERR "+e.message);} busy=false; refresh();}
 
 setInterval(()=>{$("#s-clock").textContent=new Date().toLocaleTimeString([], {hour12:false});},1000);
+loadJoin();
 refresh();
 setInterval(refresh,8000);
-setInterval(()=>{ if(anyDraining) refresh(); },1500);   // fast poll while draining
+setInterval(()=>{ if(anyDraining) refresh(); },1500);
+setInterval(()=>{ if(anyAddJobs||anyDriverJobs) pollAddJobs(); },1500);
+pollAddJobs();
 </script>
 </body>
 </html>

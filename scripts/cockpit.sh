@@ -11,12 +11,54 @@ PORT="${COCKPIT_PORT:-8090}"
 case "$ACTION" in
   install)
     require_cluster
+    [[ -f "${REPO_ROOT}/config/cluster.env" ]] && load_env "${REPO_ROOT}/config/cluster.env"
     title "Installing Fleet Cockpit"
     kc create namespace cockpit --dry-run=client -o yaml | kc apply -f - >/dev/null
     kc -n cockpit create configmap cockpit-code \
         --from-file="${REPO_ROOT}/cockpit/app.py" \
         --from-file="${REPO_ROOT}/cockpit/index.html" \
+        --from-file=install-nvidia-driver.sh="${REPO_ROOT}/scripts/install-nvidia-driver.sh" \
         --dry-run=client -o yaml | kc apply -f - >/dev/null
+    # shellcheck source=lib/join-token.sh
+    source "${REPO_ROOT}/scripts/lib/join-token.sh"
+    TOKEN=""
+    if TOKEN="$(fetch_join_token 2>/dev/null)" && [[ -n "${TOKEN:-}" ]]; then
+      : # fetched
+    else
+      TOKEN=""
+    fi
+    if [[ -z "${SERVER_HOST:-}" ]]; then
+      warn "SERVER_HOST not set in config/cluster.env — cannot configure Add Node."
+    elif [[ -n "${TOKEN:-}" ]]; then
+      kc -n cockpit create secret generic cockpit-join \
+          --from-literal=token="${TOKEN}" \
+          --from-literal=server_host="${SERVER_HOST}" \
+          --from-literal=server_port="${SERVER_PORT:-6443}" \
+          --from-literal=k3s_channel="${K3S_CHANNEL:-stable}" \
+          --from-literal=gpu_operator_manages_driver="${GPU_OPERATOR_MANAGES_DRIVER:-0}" \
+          --from-literal=nvidia_driver_package="${NVIDIA_DRIVER_PACKAGE:-}" \
+          --from-literal=nvidia_driver_flavor="${NVIDIA_DRIVER_FLAVOR:-open}" \
+          --dry-run=client -o yaml | kc apply -f - >/dev/null
+      ok "Join secret created (Add Node enabled in Cockpit)."
+    else
+      warn "Could not fetch k3s join token."
+      echo "  Fix: set JOIN_TOKEN in config/cluster.env (from 'make add-node' on sonic), then re-run make cockpit"
+      echo "  Or run make cockpit from a machine with kubectl access (auto-fetches via control-plane pod)."
+    fi
+    SSH_KEY="${COCKPIT_SSH_KEY:-}"
+    for cand in "${SSH_KEY}" "${HOME}/.ssh/id_ed25519" "${HOME}/.ssh/id_rsa"; do
+      [[ -n "${cand}" && -f "${cand}" ]] && SSH_KEY="${cand}" && break
+    done
+    if [[ -n "${SSH_KEY}" && -f "${SSH_KEY}" ]]; then
+      SSH_FIELD="id_ed25519"
+      [[ "${SSH_KEY}" == *"id_rsa"* ]] && SSH_FIELD="id_rsa"
+      kc -n cockpit create secret generic cockpit-ssh \
+          --from-file="${SSH_FIELD}=${SSH_KEY}" \
+          --dry-run=client -o yaml | kc apply -f - >/dev/null
+      ok "SSH key saved for remote Add Node (from ${SSH_KEY})."
+    else
+      warn "No SSH key found — paste a key in Cockpit or set COCKPIT_SSH_KEY in cluster.env."
+    fi
     kc apply -f "${REPO_ROOT}/manifests/cockpit/cockpit.yaml" >/dev/null
     kc -n cockpit rollout restart deploy/cockpit >/dev/null 2>&1 || true
     ok "Cockpit deployed."

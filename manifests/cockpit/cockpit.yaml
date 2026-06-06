@@ -32,6 +32,34 @@ rules:
   - apiGroups: ["apps"]
     resources: ["deployments/scale"]
     verbs: ["patch", "update"]     # the scale +/- buttons
+  - apiGroups: ["longhorn.io"]
+    resources: ["nodes"]
+    verbs: ["get", "list"]         # per-node Longhorn disk usage
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cockpit-join
+  namespace: cockpit
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["cockpit-join"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cockpit-join
+  namespace: cockpit
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cockpit-join
+subjects:
+  - kind: ServiceAccount
+    name: cockpit
+    namespace: cockpit
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -64,7 +92,12 @@ spec:
       containers:
         - name: cockpit
           image: python:3.12-slim
-          command: ["python", "/app/app.py"]
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              apt-get update -qq
+              DEBIAN_FRONTEND=noninteractive apt-get install -y -qq openssh-client sshpass >/dev/null 2>&1 || true
+              exec python /app/app.py
           env:
             - name: PORT
               value: "8090"
@@ -73,6 +106,12 @@ spec:
           volumeMounts:
             - name: code
               mountPath: /app
+            - name: join
+              mountPath: /var/run/secrets/join
+              readOnly: true
+            - name: ssh
+              mountPath: /var/run/secrets/ssh
+              readOnly: true
           readinessProbe:
             httpGet: { path: /healthz, port: 8090 }
             initialDelaySeconds: 2
@@ -83,6 +122,14 @@ spec:
         - name: code
           configMap:
             name: cockpit-code
+        - name: join
+          secret:
+            secretName: cockpit-join
+            optional: true
+        - name: ssh
+          secret:
+            secretName: cockpit-ssh
+            optional: true
 ---
 apiVersion: v1
 kind: Service

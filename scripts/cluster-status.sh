@@ -14,8 +14,8 @@ fi
 
 title "Cluster: $(kc config current-context 2>/dev/null || echo '?')"
 
-printf "%s%-18s %-8s %-10s %-22s %-5s %-11s%s\n" "$C_BLD" \
-  "NODE" "READY" "ROLE" "GPU PRODUCT" "GPUs" "TIER" "$C_RST"
+printf "%s%-18s %-8s %-10s %-22s %-5s %-11s %-10s%s\n" "$C_BLD" \
+  "NODE" "READY" "ROLE" "GPU PRODUCT" "GPUs" "TIER" "DRIVER" "$C_RST"
 
 kc get nodes -o json | python3 -c '
 import json, sys
@@ -31,10 +31,21 @@ for n in d["items"]:
         role = "control"
     if "node-role.kubernetes.io/control-plane" in labels:
         role = "control"
-    prod = labels.get("nvidia.com/gpu.product", "-")
+    prod = labels.get("gpu.homelab/product") or labels.get("nvidia.com/gpu.product", "-")
     gpus = n.get("status", {}).get("allocatable", {}).get("nvidia.com/gpu", "0")
+    if gpus == "0" and labels.get("gpu.homelab/count"):
+        gpus = labels.get("gpu.homelab/count", "0")
     tier = labels.get("gpu.homelab/tier", "-")
-    print(f"{name:<18} {ready:<8} {role:<10} {prod[:22]:<22} {str(gpus):<5} {tier:<11}")
+    drv = labels.get("gpu.homelab/driver", "")
+    if drv == "pending":
+        driver = "pending"
+    elif int(gpus or 0) > 0:
+        driver = "ok"
+    elif labels.get("nvidia.com/gpu.present") == "true":
+        driver = "pending"
+    else:
+        driver = "-"
+    print(f"{name:<18} {ready:<8} {role:<10} {str(prod)[:22]:<22} {str(gpus):<5} {tier:<11} {driver:<10}")
 '
 
 hr

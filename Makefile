@@ -8,7 +8,7 @@ S := ./scripts
 .DEFAULT_GOAL := help
 
 .PHONY: help preflight server join-server agent add-node remove-node \
-        label-gpus status stack dashboard ui cockpit cockpit-ui cockpit-demo cli kubeconfig smoke uninstall config
+        label-gpus install-driver install-driver-node status stack dashboard ui cockpit cockpit-ui cockpit-demo cli kubeconfig smoke uninstall config
 
 help: ## Show this help
 	@echo ""
@@ -56,6 +56,12 @@ remove-node: ## (on a server) Gracefully remove a node. Usage: make remove-node 
 
 label-gpus: ## Auto-tag nodes by GPU tier (training/inference/...)
 	@$(S)/label-gpus.sh
+
+install-driver: ## Install NVIDIA host driver on THIS machine
+	@$(S)/install-nvidia-driver.sh
+
+install-driver-node: ## SSH install driver on a node. NODE=name or HOST=ip [USER=alec]
+	@$(S)/install-driver-node.sh
 
 status: ## Show the whole fleet: nodes, GPUs, tiers, workloads
 	@$(S)/cluster-status.sh
