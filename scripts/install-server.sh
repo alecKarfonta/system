@@ -26,9 +26,17 @@ fi
 info "k3s flags: ${EXTRA_ARGS[*]}"
 confirm "Proceed with install on $(hostname)?" || die "Aborted."
 
+# shellcheck source=lib/longhorn-node-prep.sh
+source "${REPO_ROOT}/scripts/lib/longhorn-node-prep.sh"
+prep_longhorn_node_host
+
 curl -sfL https://get.k3s.io | \
   INSTALL_K3S_CHANNEL="${K3S_CHANNEL}" \
   sh -s - server "${EXTRA_ARGS[@]}"
+
+# shellcheck source=lib/cni-sync.sh
+source "${REPO_ROOT}/scripts/lib/cni-sync.sh"
+run_post_join_cni
 
 info "Waiting for the node to become Ready..."
 for i in $(seq 1 30); do

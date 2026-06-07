@@ -6,7 +6,8 @@
    It prints a `JOIN_TOKEN='...' make agent` line.
 2. On the new machine: install the NVIDIA driver if it's a consumer card
    (`nvidia-smi` should work), clone the repo, copy your `config/cluster.env`, run preflight,
-   then paste the join line.
+   then paste the join line. The join scripts install Longhorn host packages (`open-iscsi`,
+   `nfs-common`) and apply a Docker/k3s cgroup fix when needed so the node can contribute storage.
 3. Back on a server: `make label-gpus && make status`.
 
 The GPU Operator provisions the new node automatically — you don't install drivers through

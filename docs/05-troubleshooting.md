@@ -43,6 +43,23 @@ this is the most likely place to need a tweak. **Node-label targeting always wor
 - Clock skew breaks TLS: `sudo timedatectl set-ntp true` on both ends.
 - Behind CGNAT and not using Tailscale? The worker can't reach the server. Enable Tailscale.
 
+## Longhorn storage missing on a node (Cockpit shows "Ephemeral budget" instead of LONGHORN)
+
+Fleet Cockpit shows per-node **LONGHORN** stats only when Longhorn manager is healthy and a disk
+exists at `/var/lib/longhorn/`. If a new node shows only **Ephemeral budget**, check:
+
+1. **Longhorn manager on that node:**
+   `kubectl -n longhorn-system get pods -l app=longhorn-manager -o wide`
+2. **Common causes on fresh workers:**
+   - Missing `open-iscsi` — manager logs say `iscsiadm: No such file or directory`.
+   - **Docker + k3s cgroup mismatch** — kubelet events say `expected cgroupsPath ... systemd cgroups`.
+     Happens when standalone Docker runs on the host alongside k3s. Fix: `/etc/rancher/k3s/config.yaml`
+     with `kubelet-arg: ["cgroup-driver=systemd"]`, then `sudo systemctl restart k3s-agent`, then delete
+     any CrashLooping Longhorn pods on that node so they recreate cleanly.
+
+Join scripts (`make agent`, `make server`, `make join-server`) now run this prep automatically.
+For nodes already joined, re-run `make agent` on the box (or install packages + cgroup config by hand).
+
 ## Drain hangs on `make remove-node`
 
 A pod with no PodDisruptionBudget headroom (e.g. a 1-replica Deployment) can block. Either

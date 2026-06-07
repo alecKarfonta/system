@@ -58,6 +58,11 @@ else
        (recommended for consumer cards) or set GPU_OPERATOR_MANAGES_DRIVER=1."
 fi
 
+# Longhorn storage prerequisites
+# shellcheck source=lib/longhorn-node-prep.sh
+source "${REPO_ROOT}/scripts/lib/longhorn-node-prep.sh"
+check_longhorn_host_preflight
+
 # Swap (k3s tolerates it, but flag for awareness)
 if swapon --show 2>/dev/null | grep -q .; then
   info "Swap is on (k3s works fine with swap on)."

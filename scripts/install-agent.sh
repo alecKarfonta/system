@@ -19,11 +19,19 @@ EXTRA_ARGS=( "--node-label" "node-role.homelab/gpu-worker=true" )
 
 confirm "Join cluster at ${SERVER_HOST}:${SERVER_PORT} as a worker?" || die "Aborted."
 
+# shellcheck source=lib/longhorn-node-prep.sh
+source "${REPO_ROOT}/scripts/lib/longhorn-node-prep.sh"
+prep_longhorn_node_host
+
 curl -sfL https://get.k3s.io | \
   INSTALL_K3S_CHANNEL="${K3S_CHANNEL}" \
   K3S_URL="https://${SERVER_HOST}:${SERVER_PORT}" \
   K3S_TOKEN="${JOIN_TOKEN}" \
   sh -s - agent "${EXTRA_ARGS[@]}"
+
+# shellcheck source=lib/cni-sync.sh
+source "${REPO_ROOT}/scripts/lib/cni-sync.sh"
+run_post_join_cni
 
 hr
 ok "Worker joined."
