@@ -1,0 +1,29 @@
+name: plateforge
+display_name: PlateForge
+repo: ~/git/electroplating
+namespace: plateforge
+k8s_overlay: homelab
+deployment: backend
+compose_service: app
+image_local: docker.io/library/electroplating-app:local
+image_registry: ghcr.io/aleckarfonta/electroplating/backend
+host_port: 8116
+node_affinity:
+  homelab/cpu-tier: cheap
+service_ports:
+  api: 8116
+  ui: 3017
+nginx:
+  upstream_api: host196_plateforge_api
+  upstream_fe: host196_plateforge_fe
+  config: nginx/apps/plateforge.conf
+routes:
+  - path: /plateforge/
+    upstream: host196_plateforge_api
+    note: proxy_pass must NOT have trailing slash
+  - path: /stl/api/
+    upstream: host196_plateforge_api
+    strip_prefix: true
+  - path: /stl-api/
+    upstream: host196_plateforge_api
+    strip_prefix: true
