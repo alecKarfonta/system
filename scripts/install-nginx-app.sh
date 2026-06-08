@@ -8,9 +8,10 @@ SYSTEM_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="${1:?Usage: install-nginx-app.sh <app-name>}"
 
 APP_CONF="${SYSTEM_ROOT}/nginx/apps/${APP}.conf"
+UPSTREAM_CONF="${SYSTEM_ROOT}/nginx/upstreams/${APP}.conf"
+UPSTREAM_SNIPPET="${SYSTEM_ROOT}/nginx/00-upstreams.snippet.conf"
 TARGET_CONF="/etc/nginx/conf.d/apps/${APP}.conf"
 UPSTREAMS_FILE="/etc/nginx/conf.d/00-upstreams.conf"
-UPSTREAM_SNIPPET="${SYSTEM_ROOT}/nginx/00-upstreams.snippet.conf"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Run with sudo: sudo $0 ${APP}" >&2
@@ -26,9 +27,16 @@ cp "${TARGET_CONF}" "${TARGET_CONF}.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null || tr
 cp "${APP_CONF}" "${TARGET_CONF}"
 echo "Installed ${TARGET_CONF}"
 
-if [ -f "${UPSTREAM_SNIPPET}" ] && [ -f "${UPSTREAMS_FILE}" ]; then
+UPSTREAM_SOURCE=""
+if [ -f "${UPSTREAM_CONF}" ]; then
+    UPSTREAM_SOURCE="${UPSTREAM_CONF}"
+elif [ -f "${UPSTREAM_SNIPPET}" ]; then
+    UPSTREAM_SOURCE="${UPSTREAM_SNIPPET}"
+fi
+
+if [ -n "${UPSTREAM_SOURCE}" ] && [ -f "${UPSTREAMS_FILE}" ]; then
     cp "${UPSTREAMS_FILE}" "${UPSTREAMS_FILE}.bak.$(date +%Y%m%d%H%M%S)"
-    python3 - "${UPSTREAMS_FILE}" "${UPSTREAM_SNIPPET}" <<'PY'
+    python3 - "${UPSTREAMS_FILE}" "${UPSTREAM_SOURCE}" <<'PY'
 import pathlib
 import re
 import sys

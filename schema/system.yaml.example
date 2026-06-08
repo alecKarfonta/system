@@ -1,0 +1,33 @@
+# App deploy contract — place this file as system.yaml in the app repo root.
+# Register the repo in ~/git/system/apps/<name>.yaml (repo path only).
+
+name: myapp
+namespace: myapp
+
+build:
+  compose_file: docker-compose.yml
+  service: app
+  homelab:
+    image: docker.io/library/myapp-app:local
+  registry:
+    image: ghcr.io/org/myapp
+    tag: latest
+    push: true
+
+k8s:
+  deployment: backend
+  default_overlay: homelab
+  overlays:
+    homelab:
+      # Import built image onto nodes matching this label before rollout
+      import_nodes: homelab/cpu-tier=cheap
+    production: {}
+
+verify:
+  - url: http://127.0.0.1:8080/health
+    description: local LoadBalancer health
+  - url: https://mlapi.us/myapp/health
+    expect_status: 200
+
+nginx:
+  name: myapp

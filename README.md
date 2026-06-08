@@ -1,49 +1,73 @@
 # Homelab System
 
-Central registry for edge nginx routing and Kubernetes deployment conventions across homelab apps.
+Central platform for deploying app repos to the managed k3s cluster and configuring mlapi.us edge routing.
 
-Each application keeps its own `k8s/` manifests in its repo. This repo holds shared nginx configs, deploy scripts, and app metadata.
+**Contract:** each app repo provides `system.yaml` + `k8s/`. System provides registry entry (`apps/<name>.yaml`), deploy scripts, and nginx configs.
 
 ## Layout
 
 ```
 system/
-├── apps/                  # App registry (one YAML per app)
+├── apps/                      # Registry: repo path per app (one line each)
+├── schema/system.yaml.example # Copy to app repos as system.yaml
 ├── docs/adding-an-app.md
 ├── nginx/
-│   ├── 00-upstreams.snippet.conf   # Upstream blocks to merge into edge nginx
-│   └── apps/                       # Per-app location blocks for mlapi.us
+│   ├── upstreams/             # Per-app upstream snippets
+│   └── apps/                  # Per-app location blocks
 └── scripts/
-    ├── deploy-app.sh               # Build + kustomize apply for any registered app
-    ├── import-k3s-image.sh         # Import local Docker image into k3s containerd
-    └── install-nginx-app.sh        # Install one app's nginx config (requires sudo)
+    ├── lib/app_config.py      # Load + validate registry + system.yaml
+    ├── register-app.sh        # Add app to registry from repo path
+    ├── validate-app.sh        # Check app repo contract
+    ├── deploy-app.sh          # Build, apply, rollout, verify
+    ├── import-k3s-image.sh    # Import image to server + worker nodes
+    └── install-nginx-app.sh   # Install nginx config (sudo)
 ```
 
 ## Quick start
 
-Deploy PlateForge to the homelab k3s cluster:
-
 ```bash
-~/git/system/scripts/deploy-app.sh plateforge
+# Validate plateforge contract
+~/git/system/scripts/validate-app.sh plateforge
+
+# Deploy to managed cluster (build, import, apply, verify)
+~/git/system/scripts/deploy-app.sh plateforge deploy
+
+# Install nginx routing on mlapi.us host
+sudo ~/git/system/scripts/install-nginx-app.sh plateforge
 ```
 
-Install or refresh nginx routing (on the mlapi.us host):
+## How it works
+
+1. App repo contains `system.yaml` (deploy contract) and `k8s/base` + `k8s/overlays/{homelab,production}`.
+2. System registry `apps/<name>.yaml` points at the repo: `repo: ~/git/myapp`.
+3. `deploy-app.sh` merges registry + `system.yaml`, validates layout, builds image, imports to k3s nodes, applies kustomize overlay with server-side apply, waits for rollout, runs verify URLs.
+
+## Register a new app
 
 ```bash
-sudo ~/git/system/scripts/install-nginx-app.sh plateforge
+cp ~/git/system/schema/system.yaml.example ~/git/myapp/system.yaml
+# edit system.yaml, add k8s manifests
+~/git/system/scripts/register-app.sh ~/git/myapp
+~/git/system/scripts/deploy-app.sh myapp deploy
 ```
 
 ## Conventions
 
-| Item | Convention |
-|------|------------|
-| Namespace | App short name (`plateforge`, `speaker`, …) |
-| Kustomize | `k8s/base/` + `k8s/overlays/homelab/` and `k8s/overlays/production/` |
-| Homelab overlay | Local image import, hostPort, no ingress (host nginx handles TLS) |
-| Production overlay | GHCR images, ingress TLS, PVC |
-| Edge routing | Upstreams in `00-upstreams.conf`, locations in `conf.d/apps/<app>.conf` |
-| Image (homelab) | `docker.io/library/<app>-app:local` imported via k3s ctr |
+| Item | Location |
+|------|----------|
+| Deploy contract | `<app-repo>/system.yaml` |
+| K8s manifests | `<app-repo>/k8s/` |
+| Registry pointer | `~/git/system/apps/<name>.yaml` |
+| Homelab overlay | `k8s/overlays/homelab` — local image, no ingress |
+| Production overlay | `k8s/overlays/production` — registry image + ingress |
+| Edge routing | `~/git/system/nginx/apps/<name>.conf` |
 
-## Registered apps
+## Environment
 
-See `apps/*.yaml` for repo paths, namespaces, and nginx upstream names.
+| Variable | Purpose |
+|----------|---------|
+| `K8S_OVERLAY` | `homelab` (default) or `production` |
+| `IMAGE_TAG` | Registry tag for production builds |
+| `KUBECONFIG` | Target cluster kubeconfig |
+| `SKIP_VERIFY=1` | Skip post-deploy health checks |
+| `SYSTEM_ROOT` | Path to system repo |

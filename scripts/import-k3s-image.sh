@@ -3,9 +3,9 @@
 
 set -euo pipefail
 
-IMAGE="${1:?Usage: import-k3s-image.sh <image:tag>}"
-IMPORT_NODES="${K3S_IMPORT_NODES:-homelab/cpu-tier=cheap}"
-NAMESPACE="${K3S_IMPORT_NAMESPACE:-plateforge}"
+IMAGE="${1:?Usage: import-k3s-image.sh <image:tag> [namespace] [label=value]}"
+IMPORT_NODES="${3:-${K3S_IMPORT_NODES:-}}"
+NAMESPACE="${2:-${K3S_IMPORT_NAMESPACE:-default}}"
 
 import_on_server() {
     local k3s_pid
