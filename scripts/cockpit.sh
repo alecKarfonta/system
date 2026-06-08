@@ -18,6 +18,7 @@ case "$ACTION" in
         --from-file="${REPO_ROOT}/cockpit/app.py" \
         --from-file="${REPO_ROOT}/cockpit/index.html" \
         --from-file=install-nvidia-driver.sh="${REPO_ROOT}/scripts/install-nvidia-driver.sh" \
+        --from-file=k3s-cni-sync.sh="${REPO_ROOT}/scripts/k3s-cni-sync.sh" \
         --dry-run=client -o yaml | kc apply -f - >/dev/null
     # shellcheck source=lib/join-token.sh
     source "${REPO_ROOT}/scripts/lib/join-token.sh"
@@ -61,6 +62,8 @@ case "$ACTION" in
     fi
     kc apply -f "${REPO_ROOT}/manifests/cockpit/cockpit.yaml" >/dev/null
     kc -n cockpit rollout restart deploy/cockpit >/dev/null 2>&1 || true
+    kc -n cockpit rollout status deploy/cockpit --timeout=120s >/dev/null 2>&1 || \
+      warn "Cockpit rollout slow — if UI looks stale, run: kubectl -n cockpit delete pod -l app=cockpit"
     ok "Cockpit deployed."
     echo "Open it:   make cockpit-ui"
     echo "Or browse: http://<any-node-ip>:30880   (stable LAN URL, no port-forward needed)"

@@ -140,6 +140,10 @@ h1 small{display:block;font-size:10px;letter-spacing:.34em;color:var(--dim);font
 .badge.tier.training{color:var(--phos);border-color:#1d4d35}
 .badge.tier.inference{color:var(--cyan);border-color:#1d3a47}
 .badge.tier.datacenter{color:var(--amber);border-color:#574124}
+.badge.cpu-tier{color:var(--dim);border-color:var(--line)}
+.badge.cpu-tier.cheap{color:#8ab4a8;border-color:#2a4035}
+.badge.cpu-tier.standard{color:var(--cyan);border-color:#1d3a47}
+.badge.cpu-tier.performance{color:var(--amber);border-color:#574124}
 .badge.alloc{color:var(--phos);border-color:#1d4d35}
 .badge.free{color:var(--dim)}
 .node{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
@@ -222,6 +226,19 @@ tr:hover td{background:var(--phos-soft)}
 .ready-ok{color:var(--phos)} .ready-bad{color:var(--amber)}
 .scale{display:inline-flex;gap:6px;align-items:center}
 .scale b{min-width:18px;text-align:center}
+.wl-manage{font-size:9px;letter-spacing:.16em;padding:4px 8px;border:1px solid var(--line);
+  background:transparent;color:var(--cyan);cursor:pointer}
+.wl-manage:hover{border-color:var(--cyan)}
+.wl-panel{display:none;background:var(--panel2);border:1px solid var(--line);padding:16px 18px;margin:8px 0 16px}
+.wl-panel.open{display:block;animation:rise .35s ease both}
+.wl-panel h4{font-family:var(--disp);font-size:13px;letter-spacing:.12em;margin:0 0 12px}
+.wl-panel .wl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 16px}
+.wl-panel label{font-size:9px;letter-spacing:.18em;color:var(--dim);display:flex;flex-direction:column;gap:4px}
+.wl-panel input,.wl-panel select{background:#0a120e;border:1px solid var(--line);color:var(--ink);
+  padding:6px 8px;font-size:12px}
+.wl-panel .wl-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.wl-panel .wl-meta{font-size:10px;color:var(--dim);margin-bottom:10px}
+.wl-panel .wl-meta b{color:var(--ink)}
 
 #toast{position:fixed;bottom:22px;right:26px;background:var(--panel2);border:1px solid var(--phos);
   color:var(--phos);padding:10px 16px;font-size:11.5px;letter-spacing:.08em;opacity:0;
@@ -341,16 +358,47 @@ tr:hover td{background:var(--phos-soft)}
 <div class="sec">WORKLOADS</div>
 <table>
   <thead><tr><th>NAMESPACE / NAME</th><th>KIND</th><th class="num">GPUs</th>
-  <th class="num">READY</th><th class="num">SCALE</th></tr></thead>
+  <th>CPU SCHED</th><th>NODE</th><th class="num">READY</th><th class="num">SCALE</th><th></th></tr></thead>
   <tbody id="wl"></tbody>
 </table>
+<div class="wl-panel" id="wl-panel">
+  <h4 id="wl-title">WORKLOAD</h4>
+  <div class="wl-meta" id="wl-meta"></div>
+  <div class="wl-grid">
+    <label>CPU SCHEDULING
+      <select id="wl-cpu-mode">
+        <option value="any">Any node</option>
+        <option value="prefer_cheap_standard">Prefer cheap → standard</option>
+        <option value="prefer_cheap">Prefer cheap only</option>
+        <option value="avoid_performance">Avoid performance tier</option>
+        <option value="cheap_only">Cheap nodes only</option>
+      </select></label>
+    <label>ROLLING STRATEGY
+      <select id="wl-strategy">
+        <option value="RollingUpdate">RollingUpdate</option>
+        <option value="Recreate">Recreate (single PVC)</option>
+      </select></label>
+    <label>CPU REQUEST <input id="wl-cpu-req" placeholder="250m"></label>
+    <label>CPU LIMIT <input id="wl-cpu-lim" placeholder="2"></label>
+    <label>MEM REQUEST <input id="wl-mem-req" placeholder="512Mi"></label>
+    <label>MEM LIMIT <input id="wl-mem-lim" placeholder="2Gi"></label>
+  </div>
+  <div class="wl-actions">
+    <button type="button" onclick="saveWl()">APPLY</button>
+    <button type="button" class="warn" onclick="closeWl()">CLOSE</button>
+  </div>
+</div>
 <div id="err"></div>
 <div id="toast"></div>
 
 <script>
 const $=s=>document.querySelector(s);
-const TIERS=["training","inference","datacenter","general","-"];
-let busy=false, armed={};
+const GPU_TIERS=["training","inference","datacenter","general","-"];
+const CPU_TIERS=["cheap","standard","performance","-"];
+const CPU_TIER_MODE_LABEL={
+  any:"ANY", prefer_cheap:"PREF CHEAP", prefer_cheap_standard:"CHEAP→STD",
+  avoid_performance:"NO PERF", cheap_only:"CHEAP ONLY"};
+let busy=false, armed={}, wlCache=[], wlEdit=null;
 
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");
   setTimeout(()=>t.classList.remove("show"),2400);}
@@ -365,6 +413,7 @@ const fmtGiB=(used,total)=>{
   const u=used?fmtG(used):0, t=total?fmtG(total):(used?u:"—");
   return `${u} / ${t} GiB`;};
 const tierBadge=t=>t&&t!=="-"?`<span class="badge tier ${t}">${t.toUpperCase()}</span>`:"";
+const cpuTierBadge=t=>t&&t!=="-"?`<span class="badge cpu-tier ${t}">CPU ${t.toUpperCase()}</span>`:"";
 const healthIcon=h=>h==="healthy"?"✓":h==="degraded"?"!":"✕";
 const healthSub=(h,c)=>{
   if(h==="critical") return `${c.issues.length} issue(s) need attention`;
@@ -408,6 +457,8 @@ function renderCluster(c){
   const vram=r.vram_gib||{}, stor=r.storage_gib||{};
   const tierTags=Object.entries(c.tiers||{}).map(([t,n])=>
     `<span class="tag">${t.toUpperCase()} <b>${n}</b></span>`).join("");
+  const cpuTierTags=Object.entries(c.cpu_tiers||{}).map(([t,n])=>
+    `<span class="tag cpu-${t}">CPU ${t.toUpperCase()} <b>${n}</b></span>`).join("");
   const issues=(c.issues||[]).map(i=>
     `<div class="iss ${i.level}">${i.level==="error"?"✕":"▲"} ${i.msg}</div>`).join("");
   const ringClr=h==="critical"?"var(--red)":h==="degraded"?"var(--amber)":"var(--phos)";
@@ -450,6 +501,7 @@ function renderCluster(c){
     </div>
     <div class="cluster-foot">
       ${tierTags}
+      ${cpuTierTags}
       ${n.cordoned?`<span class="tag">CORDONED <b>${n.cordoned}</b></span>`:""}
       ${n.draining?`<span class="tag">DRAINING <b>${n.draining}</b></span>`:""}
       ${u.gpu_max_pct?`<span class="tag">PEAK GPU <b>${u.gpu_max_pct}%</b></span>`:""}
@@ -602,15 +654,23 @@ function patchNode(el, n, pods, t, d){
     if(n.control){ if(!ctl) h3.insertAdjacentHTML("beforeend",'<span class="badge ctl">CTRL</span>'); }
     else ctl?.remove();
     let cord=h3.querySelector(".badge.cord");
-    if(n.unschedulable&&!active){
-      if(!cord){ h3.insertAdjacentHTML("beforeend",'<span class="badge cord">CORDONED</span>'); }
+    if(n.offline){
+      if(!cord || cord.textContent!=="OFFLINE"){
+        cord?.remove();
+        h3.insertAdjacentHTML("beforeend",'<span class="badge cord">OFFLINE</span>');
+      }
+    } else if(n.unschedulable&&!active){
+      if(!cord || cord.textContent!=="CORDONED"){
+        cord?.remove();
+        h3.insertAdjacentHTML("beforeend",'<span class="badge cord">CORDONED</span>');
+      }
     } else cord?.remove();
     let drained=h3.querySelector(".badge.drained");
     if(d&&d.phase==="done"){
       if(!drained){ h3.insertAdjacentHTML("beforeend",'<span class="badge drained">DRAINED</span>'); }
     } else drained?.remove();
     let drv=h3.querySelector(".badge.drv");
-    if(n.driver_pending){
+    if(!n.offline&&n.driver_pending){
       if(!drv) h3.insertAdjacentHTML("beforeend",'<span class="badge drv">DRIVER</span>');
     } else drv?.remove();
   }
@@ -621,20 +681,38 @@ function patchNode(el, n, pods, t, d){
   patchStorage(el, n.storage);
   const gpuSec=el.querySelector("[data-gpu-section]");
   if(gpuSec) gpuSec.innerHTML=gpuSection(n,t);
-  const tierSel=el.querySelector("[data-tier]");
-  if(n.gpus && !tierSel){
+  const gpuTierSel=el.querySelector("[data-gpu-tier]");
+  if(n.gpus && !gpuTierSel){
     el.querySelector(".actions")?.insertAdjacentHTML("afterbegin",
-      `TIER <select data-tier onchange="setTier('${n.name}',this.value)">${
-        TIERS.map(x=>`<option ${x===n.tier?"selected":""}>${x}</option>`).join("")}</select>`);
-  } else if(!n.gpus) tierSel?.remove();
-  if(tierSel && tierSel.value!==n.tier) tierSel.value=n.tier;
+      `GPU TIER <select data-gpu-tier onchange="setGpuTier('${n.name}',this.value)">${
+        GPU_TIERS.map(x=>`<option ${x===n.tier?"selected":""}>${x}</option>`).join("")}</select>`);
+  } else if(!n.gpus) gpuTierSel?.remove();
+  if(gpuTierSel && gpuTierSel.value!==n.tier) gpuTierSel.value=n.tier;
+  const cpuTierSel=el.querySelector("[data-cpu-tier]");
+  if(!cpuTierSel){
+    el.querySelector(".actions")?.insertAdjacentHTML("afterbegin",
+      `CPU TIER <select data-cpu-tier onchange="setCpuTier('${n.name}',this.value)">${
+        CPU_TIERS.map(x=>`<option ${x===n.cpu_tier?"selected":""}>${x}</option>`).join("")}</select>`);
+  } else if(cpuTierSel.value!==n.cpu_tier) cpuTierSel.value=n.cpu_tier;
+  let cpuBadge=h3?.querySelector(".badge.cpu-tier");
+  if(n.cpu_tier&&n.cpu_tier!=="-"){
+    if(cpuBadge) cpuBadge.outerHTML=cpuTierBadge(n.cpu_tier);
+    else h3?.insertAdjacentHTML("beforeend",cpuTierBadge(n.cpu_tier));
+  } else cpuBadge?.remove();
   let drvBtn=el.querySelector("[data-driver]");
-  if(n.driver_pending&&!driverOperatorManages){
+  if(!n.offline&&n.driver_pending&&!driverOperatorManages){
     if(!drvBtn){
       el.querySelector(".actions")?.insertAdjacentHTML("beforeend",
         `<button data-driver class="warn" onclick="installDriver('${n.name}','${n.internal_ip||""}')">INSTALL DRIVER</button>`);
     }
   } else drvBtn?.remove();
+  let renameBtn=el.querySelector("[data-rename]");
+  if(!n.offline&&!n.control){
+    if(!renameBtn){
+      el.querySelector(".actions")?.insertAdjacentHTML("beforeend",
+        `<button data-rename onclick="renameNode('${n.name}','${n.internal_ip||""}')">RENAME</button>`);
+    } else renameBtn.onclick=()=>renameNode(n.name,n.internal_ip||"");
+  } else renameBtn?.remove();
   const podsEl=el.querySelector(".pods");
   const podRows=(pods||[]).map(p=>
     `<div><span>${p.ns}/${p.name}</span><b>${p.gpus}× GPU</b></div>`).join("");
@@ -681,8 +759,9 @@ function upsertNodes(nodes, podsByNode, tel, drains){
 }
 
 function upsertWorkloads(workloads){
+  wlCache=workloads||[];
   const tbody=$("#wl");
-  const empty=`<tr data-empty><td colspan="5" style="color:var(--dim)">no user workloads yet — deploy something and it appears here</td></tr>`;
+  const empty=`<tr data-empty><td colspan="8" style="color:var(--dim)">no user workloads yet — deploy something and it appears here</td></tr>`;
   if(!workloads.length){
     tbody.innerHTML=empty; return;
   }
@@ -698,19 +777,59 @@ function upsertWorkloads(workloads){
       row=wrap.firstElementChild;
       row.dataset.wl=key;
       tbody.appendChild(row);
-    } else {
-      row.children[2].textContent=w.gpus||0;
-      const rd=row.children[3];
-      rd.textContent=`${w.ready}/${w.replicas}`;
-      rd.className=`num ${w.ready>=w.replicas?"ready-ok":"ready-bad"}`;
-      if(w.kind==="Deployment"){
-        row.children[4].innerHTML=`<span class="scale">
-          <button onclick="scale('${w.ns}','${w.name}',${w.replicas-1})">−</button><b>${w.replicas}</b>
-          <button onclick="scale('${w.ns}','${w.name}',${w.replicas+1})">+</button></span>`;
-      }
-    }
+    } else patchWlRow(row, w);
   });
   tbody.querySelectorAll("tr[data-wl]").forEach(r=>{ if(!seen.has(r.dataset.wl)) r.remove(); });
+}
+
+function patchWlRow(row,w){
+  row.children[2].textContent=w.gpus||0;
+  row.children[3].innerHTML=`<span class="badge cpu-tier">${CPU_TIER_MODE_LABEL[w.cpu_tier_mode]||"ANY"}</span>`;
+  row.children[4].textContent=w.node||"—";
+  const rd=row.children[5];
+  rd.textContent=`${w.ready}/${w.replicas}`;
+  rd.className=`num ${w.ready>=w.replicas?"ready-ok":"ready-bad"}`;
+  if(w.kind==="Deployment"){
+    row.children[6].innerHTML=`<span class="scale">
+      <button onclick="scale('${w.ns}','${w.name}',${w.replicas-1})">−</button><b>${w.replicas}</b>
+      <button onclick="scale('${w.ns}','${w.name}',${w.replicas+1})">+</button></span>`;
+    row.children[7].innerHTML=`<button type="button" class="wl-manage" onclick="openWl('${w.ns}','${w.name}')">MANAGE</button>`;
+  }
+}
+
+function openWl(ns,name){
+  const w=wlCache.find(x=>x.ns===ns&&x.name===name);
+  if(!w) return;
+  wlEdit={ns,name};
+  $("#wl-title").textContent=`${ns} / ${name}`;
+  $("#wl-meta").innerHTML=`Running on <b>${w.node||"—"}</b> · strategy <b>${w.strategy||"RollingUpdate"}</b>`;
+  $("#wl-cpu-mode").value=w.cpu_tier_mode||"any";
+  $("#wl-strategy").value=w.strategy||"RollingUpdate";
+  $("#wl-cpu-req").value=w.cpu_req||"";
+  $("#wl-cpu-lim").value=w.cpu_lim||"";
+  $("#wl-mem-req").value=w.mem_req||"";
+  $("#wl-mem-lim").value=w.mem_lim||"";
+  $("#wl-panel").classList.add("open");
+  $("#wl-panel").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+function closeWl(){ wlEdit=null; $("#wl-panel").classList.remove("open"); }
+async function saveWl(){
+  if(!wlEdit||busy) return;
+  busy=true;
+  try{
+    await api("/api/workload/configure",{
+      ns:wlEdit.ns, name:wlEdit.name,
+      cpu_tier_mode:$("#wl-cpu-mode").value,
+      strategy:$("#wl-strategy").value,
+      cpu_req:$("#wl-cpu-req").value.trim(),
+      cpu_lim:$("#wl-cpu-lim").value.trim(),
+      mem_req:$("#wl-mem-req").value.trim(),
+      mem_lim:$("#wl-mem-lim").value.trim(),
+    });
+    toast(`UPDATED ${wlEdit.name}`);
+    closeWl();
+  }catch(e){ toast("ERR "+e.message); }
+  busy=false; refresh();
 }
 
 function drainBlock(d){
@@ -725,10 +844,22 @@ function drainBlock(d){
 function fmtGpuName(p){ return !p||p==="-"?"—":p.replace(/-/g," "); }
 function fmtNodeGiB(v){ return !v||v==="-"?"—":`${v} GiB`; }
 function gpuSection(n,t){
+  if(n.offline&&n.gpus){
+    const segs=Array.from({length:n.gpus},()=>`<div class="seg pending"></div>`).join("");
+    const why=n.offline_reason||"OFFLINE";
+    return `<div class="meter pending">${segs}</div>
+      <div class="mlabel gpu-pending">${n.gpus} GPU(S) · ${why} — MACHINE UNREACHABLE</div>`;
+  }
   if(n.driver_pending&&n.gpus){
     const segs=Array.from({length:n.gpus},()=>`<div class="seg pending"></div>`).join("");
     return `<div class="meter pending">${segs}</div>
       <div class="mlabel gpu-pending">${n.gpus} GPU(S) · DRIVER NOT INSTALLED</div>`;
+  }
+  if(n.gpu_registering&&n.gpus){
+    const segs=Array.from({length:n.gpus},()=>`<div class="seg pending"></div>`).join("");
+    const why=n.gpu_status_msg||(n.ready?"GPU OPERATOR INITIALIZING":"NODE NOT READY (CNI / KUBELET)");
+    return `<div class="meter pending">${segs}</div>
+      <div class="mlabel gpu-pending">${n.gpus} GPU(S) · ${why}</div>`;
   }
   if(n.gpus){
     const segs=Array.from({length:n.gpus},(_,i)=>`<div class="seg ${i<n.gpu_used?"on":""}"></div>`).join("");
@@ -742,12 +873,15 @@ function nodeCard(n,pods,t,d){
   const active=d&&(d.phase==="starting"||d.phase==="evicting");
   const podRows=(pods||[]).map(p=>
     `<div><span>${p.ns}/${p.name}</span><b>${p.gpus}× GPU</b></div>`).join("");
-  const tierOpts=TIERS.map(x=>`<option ${x===n.tier?"selected":""}>${x}</option>`).join("");
+  const gpuTierOpts=GPU_TIERS.map(x=>`<option ${x===n.tier?"selected":""}>${x}</option>`).join("");
+  const cpuTierOpts=CPU_TIERS.map(x=>`<option ${x===n.cpu_tier?"selected":""}>${x}</option>`).join("");
   const isArmed=armed[n.name];
   return `<div class="node ${n.unschedulable?"cordoned":""} ${active?"draining":""}" data-name="${n.name}">
     <h3><span class="dot ${n.ready?"":"bad"}"></span>${n.name}
       ${n.control?'<span class="badge ctl">CTRL</span>':""}
-      ${n.driver_pending?'<span class="badge drv">DRIVER</span>':""}
+      ${cpuTierBadge(n.cpu_tier)}
+      ${n.offline?'<span class="badge cord">OFFLINE</span>':""}
+      ${!n.offline&&n.driver_pending?'<span class="badge drv">DRIVER</span>':""}
       ${n.unschedulable&&!active?'<span class="badge cord">CORDONED</span>':""}
       ${d&&d.phase==="done"?'<span class="badge drained">DRAINED</span>':""}</h3>
     <div class="kv">
@@ -759,8 +893,10 @@ function nodeCard(n,pods,t,d){
     ${podRows?`<div class="pods">${podRows}</div>`:""}
     ${d&&d.phase!=="cleared"?drainBlock(d):""}
     <div class="actions">
-      ${n.gpus?`TIER <select data-tier onchange="setTier('${n.name}',this.value)">${tierOpts}</select>`:""}
-      ${n.driver_pending&&!driverOperatorManages?`<button data-driver class="warn" onclick="installDriver('${n.name}','${n.internal_ip||""}')">INSTALL DRIVER</button>`:""}
+      CPU TIER <select data-cpu-tier onchange="setCpuTier('${n.name}',this.value)">${cpuTierOpts}</select>
+      ${n.gpus?`GPU TIER <select data-gpu-tier onchange="setGpuTier('${n.name}',this.value)">${gpuTierOpts}</select>`:""}
+      ${!n.offline&&n.driver_pending&&!driverOperatorManages?`<button data-driver class="warn" onclick="installDriver('${n.name}','${n.internal_ip||""}')">INSTALL DRIVER</button>`:""}
+      ${!n.offline&&!n.control?`<button data-rename onclick="renameNode('${n.name}','${n.internal_ip||""}')">RENAME</button>`:""}
       <button data-cordon class="warn" onclick="cordon('${n.name}',${!n.unschedulable})" ${active?"disabled":""}>
         ${n.unschedulable?"UNCORDON":"CORDON"}</button>
       <button data-drain class="${isArmed?"armed":"warn"}" onclick="drain('${n.name}')" ${active?"disabled":""}>
@@ -768,14 +904,18 @@ function nodeCard(n,pods,t,d){
     </div></div>`;}
 
 function wlRow(w){
+  const mode=CPU_TIER_MODE_LABEL[w.cpu_tier_mode]||"ANY";
   return `<tr><td><span style="color:var(--dim)">${w.ns} /</span> ${w.name}</td>
    <td>${w.kind}</td><td class="num">${w.gpus||0}</td>
+   <td><span class="badge cpu-tier">${mode}</span></td>
+   <td>${w.node||"—"}</td>
    <td class="num ${w.ready>=w.replicas?"ready-ok":"ready-bad"}">${w.ready}/${w.replicas}</td>
    <td class="num">${w.kind==="Deployment"?`<span class="scale">
      <button onclick="scale('${w.ns}','${w.name}',${w.replicas-1})">−</button><b>${w.replicas}</b>
-     <button onclick="scale('${w.ns}','${w.name}',${w.replicas+1})">+</button></span>`:"—"}</td></tr>`;}
+     <button onclick="scale('${w.ns}','${w.name}',${w.replicas+1})">+</button></span>`:"—"}</td>
+   <td>${w.kind==="Deployment"?`<button type="button" class="wl-manage" onclick="openWl('${w.ns}','${w.name}')">MANAGE</button>`:""}</td></tr>`;}
 
-let joinData={}, anyAddJobs=false, anyDriverJobs=false, driverOperatorManages=false;
+let joinData={}, anyAddJobs=false, anyDriverJobs=false, anyRenameJobs=false, driverOperatorManages=false;
 function addTab(t){
   document.querySelectorAll(".add-tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
   document.querySelectorAll(".add-panel").forEach(p=>p.classList.toggle("on",p.id==="tab-"+t));
@@ -791,6 +931,30 @@ function sshPayload(){
     if(!p.use_saved_key) p.key=$("#ssh-key").value;
   }
   return p;
+}
+/** SSH creds for rename / driver / suggest — auth is always prompted, not inherited from Add Node tab mode. */
+function nodeOpsSshPayload(node, ip){
+  return {
+    node,
+    host: (ip||$("#ssh-host").value.trim()),
+    user: $("#ssh-user").value.trim()||"alec",
+    port: parseInt($("#ssh-port").value, 10)||22,
+  };
+}
+function resolveSshAuth(p){
+  const tabPw=$("#ssh-auth").value==="password"?($("#ssh-password").value||""):"";
+  if(tabPw){
+    p.use_password=true;
+    p.password=tabPw;
+    p.use_saved_key=false;
+    return true;
+  }
+  const pw=prompt(`SSH password for ${p.user||"alec"}@${p.host||"node"}:\n(same password is used for sudo — not stored)`);
+  if(!pw) return false;
+  p.use_password=true;
+  p.password=pw;
+  p.use_saved_key=false;
+  return true;
 }
 function toggleSshAuth(){
   const pw=$("#ssh-auth").value==="password";
@@ -828,33 +992,57 @@ function copyJoin(kind){
 }
 async function pollAddJobs(){
   try{
-    const [jobs, djobs]=await Promise.all([
+    const [jobs, djobs, rjobs]=await Promise.all([
       api("/api/add-node/jobs"),
       api("/api/driver/jobs").catch(()=>({})),
+      api("/api/rename/jobs").catch(()=>({})),
     ]);
     const el=$("#add-jobs");
-    const entries=[...Object.values(jobs||{}), ...Object.values(djobs||{})];
+    const entries=[...Object.values(jobs||{}), ...Object.values(djobs||{}), ...Object.values(rjobs||{})];
     anyAddJobs=Object.values(jobs||{}).some(j=>!["done","error","timeout"].includes(j.phase));
     anyDriverJobs=Object.values(djobs||{}).some(j=>!["done","error","timeout"].includes(j.phase));
+    anyRenameJobs=Object.values(rjobs||{}).some(j=>!["done","error","timeout"].includes(j.phase));
     if(!entries.length){el.innerHTML=""; return;}
     el.innerHTML=entries.sort((a,b)=>b.ts-a.ts).map(j=>{
       const cls=j.phase==="done"?"done":(j.phase==="error"||j.phase==="timeout")?"error":"";
-      const lbl=j.id?.startsWith("driver-")?`DRIVER ${j.node||j.host}`:
+      const lbl=j.id?.startsWith("rename-")?`RENAME ${j.node||"?"} → ${j.new_name||j.node||"?"}`:
+        j.id?.startsWith("driver-")?`DRIVER ${j.node||j.host}`:
         j.method==="ssh"?`SSH ${j.host}`:`WATCH ${j.expected||"any"}`;
       return `<div class="add-job ${cls}"><span class="aj-phase">${j.phase.toUpperCase()}</span> · ${lbl}
-        ${j.node?` → <b style="color:var(--phos)">${j.node}</b>`:""}
+        ${j.node&&j.id?.startsWith("rename-")&&j.phase==="done"?` → <b style="color:var(--phos)">${j.node}</b>`:
+          j.node?` → <b style="color:var(--phos)">${j.node}</b>`:""}
         <div style="color:var(--dim);margin-top:3px">${j.msg||""}</div></div>`;
     }).join("");
     if(entries.some(j=>j.phase==="done")) refresh();
   }catch(e){}
 }
+async function renameNode(node, ip){
+  const p=nodeOpsSshPayload(node, ip);
+  if(!p.host) return toast("NO HOST — node has no IP yet");
+  if(!resolveSshAuth(p)) return toast("SSH auth cancelled");
+  let suggested="";
+  try{
+    const s=await api("/api/node/suggest-name",p);
+    suggested=s.suggested||"";
+  }catch(e){}
+  const nw=prompt(`Rename ${node} to (Kubernetes node name, lowercase):`, suggested||"");
+  if(!nw||!nw.trim()) return;
+  p.new_name=nw.trim();
+  if(!confirm(`Rename ${node} → ${p.new_name}?\n\nDrains workloads, removes the old node, sets hostname, and rejoins.`)) return;
+  busy=true;
+  try{
+    await api("/api/node/rename",p);
+    toast(`RENAME STARTED — ${node} → ${p.new_name}`);
+    if(!p.use_saved_key) $("#ssh-key").value="";
+    if(p.use_password) $("#ssh-password").value="";
+    pollAddJobs();
+  }catch(e){toast("ERR "+e.message);}
+  busy=false;
+}
 async function installDriver(node, ip){
-  const p=sshPayload();
-  p.node=node;
-  p.host=(ip||p.host||"").trim();
+  const p=nodeOpsSshPayload(node, ip);
   if(!p.host) return toast("NO HOST — enter IP in SSH tab or wait for node IP");
-  if(p.use_password&&!p.password) return toast("SSH PASSWORD REQUIRED");
-  if(!p.use_password&&!p.use_saved_key&&!p.key?.trim()) return toast("SSH KEY REQUIRED");
+  if(!resolveSshAuth(p)) return toast("SSH auth cancelled");
   p.reboot=true;
   busy=true;
   try{
@@ -936,8 +1124,11 @@ async function scale(ns,name,r){ if(r<0)return; busy=true;
 async function cordon(node,on){ busy=true;
   try{await api("/api/cordon",{node,on});toast(`${on?"CORDONED":"UNCORDONED"} ${node}`);}
   catch(e){toast("ERR "+e.message);} busy=false; refresh();}
-async function setTier(node,value){ busy=true;
-  try{await api("/api/label",{node,key:"gpu.homelab/tier",value});toast(`${node} TIER → ${value}`);}
+async function setGpuTier(node,value){ busy=true;
+  try{await api("/api/label",{node,key:"gpu.homelab/tier",value});toast(`${node} GPU TIER → ${value}`);}
+  catch(e){toast("ERR "+e.message);} busy=false; refresh();}
+async function setCpuTier(node,value){ busy=true;
+  try{await api("/api/label",{node,key:"homelab/cpu-tier",value});toast(`${node} CPU TIER → ${value}`);}
   catch(e){toast("ERR "+e.message);} busy=false; refresh();}
 async function drain(node){
   if(!armed[node]){              // step 1: arm
@@ -954,7 +1145,7 @@ loadJoin();
 refresh();
 setInterval(refresh,8000);
 setInterval(()=>{ if(anyDraining) refresh(); },1500);
-setInterval(()=>{ if(anyAddJobs||anyDriverJobs) pollAddJobs(); },1500);
+setInterval(()=>{ if(anyAddJobs||anyDriverJobs||anyRenameJobs) pollAddJobs(); },1500);
 pollAddJobs();
 </script>
 </body>

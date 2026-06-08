@@ -22,13 +22,13 @@ rules:
     verbs: ["get", "list"]
   - apiGroups: [""]
     resources: ["nodes"]
-    verbs: ["patch"]               # cordon/uncordon + gpu.homelab/* labels
+    verbs: ["patch", "delete"]     # cordon/labels + rename (remove old node)
   - apiGroups: [""]
     resources: ["pods/eviction"]
     verbs: ["create"]              # the DRAIN button (PDB-respecting evictions)
   - apiGroups: ["apps"]
     resources: ["deployments"]
-    verbs: ["get", "list"]
+    verbs: ["get", "list", "patch", "update"]   # scale + scheduling/resources UI
   - apiGroups: ["apps"]
     resources: ["deployments/scale"]
     verbs: ["patch", "update"]     # the scale +/- buttons
@@ -89,6 +89,16 @@ spec:
       labels: { app: cockpit }
     spec:
       serviceAccountName: cockpit
+      # Stay on the control-plane — renaming a worker must not kill the UI mid-job.
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: homelab/cpu-tier
+                    operator: In
+                    values: [cheap]
       containers:
         - name: cockpit
           image: python:3.12-slim

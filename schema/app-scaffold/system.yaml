@@ -1,0 +1,44 @@
+name: __APP_NAME__
+namespace: __APP_NAME__
+
+build:
+  compose_file: docker-compose.yml
+  service: app
+  homelab:
+    image: docker.io/library/__APP_NAME__-app:local
+    delivery: import
+    registry:
+      repo: __APP_NAME__/__APP_NAME__
+      tag: local
+  registry:
+    image: ghcr.io/__GHCR_ORG__/__APP_NAME__
+    tag: latest
+    push: true
+
+k8s:
+  deployment: app
+  default_overlay: homelab
+  overlays:
+    homelab:
+      import_nodes: homelab/cpu-tier=__CPU_TIER__
+    production: {}
+
+storage:
+  sessions:
+    type: emptyDir
+    size: 10Gi
+
+verify:
+  - url: http://127.0.0.1:__APP_PORT__/health
+    description: local health check
+  - url: https://mlapi.us/__APP_NAME__/health
+    description: edge health check
+    expect_status: 200
+
+nginx:
+  name: __APP_NAME__
+  host: auto
+  service: app
+  service_port: http
+  upstreams:
+    host196___APP_NAME___api: __APP_PORT__

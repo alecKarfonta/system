@@ -24,6 +24,7 @@ touch raw `kubectl`.
 | **Fleet Cockpit** | Custom GPU-centric GUI: cluster overview, per-GPU telemetry, scale/cordon/drain/re-tier. |
 | **`homelab` CLI** | Probes GPUs at join time (`nvidia-smi`), auto-labels VRAM, compute cap, tier. |
 | **Batteries** | Longhorn storage, DCGM → Grafana, Headlamp for deep k8s, works over Tailscale. |
+| **App deploys** | Register app repos, scaffold new services, deploy to k3s + mlapi.us from one contract. |
 
 <p align="center">
   <img src="docs/nodes.png" alt="Fleet Cockpit — node allocation and telemetry" width="900">
@@ -90,6 +91,8 @@ homelab doctor --fix
 homelab discover            # GPUs, VRAM, compute cap, auto-tier
 homelab join worker --token 'K10...'
 homelab status              # fleet table
+homelab app list            # registered apps + cluster status
+homelab app deploy plateforge
 ```
 
 Workloads can target capabilities, not machine names:
@@ -100,14 +103,50 @@ nodeSelector:
   gpu.homelab/tier: training
 ```
 
+## Managed app deploys
+
+Deploy application repos to the cluster with a shared contract — build, apply manifests,
+import images, verify health, and sync mlapi.us nginx routing.
+
+**Plateforge** (`~/git/electroplate`) is the reference implementation.
+
+```bash
+# Scaffold a new service
+make app-init NAME=myapp REPO=~/git/myapp PORT=8080
+
+# Fleet overview
+make app-list
+make app-validate-all
+
+# Deploy (build → k3s import → apply → verify → nginx upstream sync)
+make app-validate APP=plateforge
+make app-deploy APP=plateforge
+
+# Persistent session storage (Longhorn PVC)
+SESSIONS_STORAGE=pvc make app-deploy APP=plateforge
+```
+
+Each app repo provides `system.yaml` + `k8s/overlays/{homelab,production}`.
+System holds `apps/<name>.yaml` (repo pointer), deploy scripts, and `nginx/` configs.
+
+```bash
+homelab app list
+homelab app deploy plateforge
+```
+
+Full guide: [`docs/09-app-deploys.md`](docs/09-app-deploys.md)
+
 ## Layout
 
 ```
+apps/        registered app repos (apps/<name>.yaml → system.yaml contract)
 cli/         homelab CLI (discover, join, status) — make cli
 cockpit/     Fleet Cockpit source (Python + vanilla JS, no build step)
 config/      cluster.env — the ONE file you edit
-scripts/     install, join, remove, label, stack, cockpit
+schema/      system.yaml.example — copy to app repos
+scripts/     install, join, remove, label, stack, cockpit, deploy-app
 manifests/   GPU Operator, DRA DeviceClasses, cockpit, examples
+nginx/       mlapi.us edge routing per app
 docs/        guides, screenshots, troubleshooting
 Makefile     friendly command menu — make help
 ```
@@ -123,6 +162,8 @@ Makefile     friendly command menu — make help
 | GUIs & monitoring | [`docs/06-gui-and-monitoring.md`](docs/06-gui-and-monitoring.md) |
 | CLI & Fleet Cockpit | [`docs/07-cli-and-cockpit.md`](docs/07-cli-and-cockpit.md) |
 | Troubleshooting | [`docs/05-troubleshooting.md`](docs/05-troubleshooting.md) |
+| Container registry | [`docs/08-container-registry.md`](docs/08-container-registry.md) |
+| App deploys | [`docs/09-app-deploys.md`](docs/09-app-deploys.md) |
 | Glossary | [`docs/glossary.md`](docs/glossary.md) |
 
 ## Requirements

@@ -1,0 +1,50 @@
+# App deploy contract — copy to your app repo root as system.yaml.
+# Register the repo: make app-register REPO=~/git/myapp
+
+name: myapp
+namespace: myapp
+
+build:
+  compose_file: docker-compose.yml
+  service: app
+  homelab:
+    # Local tag used after docker compose build (also kustomize images.newName target).
+    image: docker.io/library/myapp:local
+    # import (default): preload onto k3s nodes via ctr import — no registry required.
+    # registry: push to homelab private registry (make registry) — overlay must reference it.
+    delivery: import
+    registry:
+      repo: myapp/myapp
+      tag: local
+  registry:
+    image: ghcr.io/org/myapp
+    tag: latest
+    push: true
+
+k8s:
+  deployment: myapp
+  default_overlay: homelab
+  overlays:
+    homelab:
+      import_nodes: homelab/cpu-tier=cheap
+    production: {}
+
+# Session / data volume strategy for the homelab overlay (app k8s must implement both).
+storage:
+  sessions:
+    type: emptyDir   # emptyDir | pvc
+    size: 10Gi       # used when type=pvc
+
+verify:
+  - url: http://127.0.0.1:8080/health
+    description: local health check
+  - url: https://mlapi.us/myapp/
+    expect_status: 200
+
+nginx:
+  name: myapp
+  host: auto
+  service: app
+  service_port: http
+  upstreams:
+    host196_myapp_api: 8080

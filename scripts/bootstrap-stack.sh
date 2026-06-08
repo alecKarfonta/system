@@ -92,5 +92,10 @@ if [[ "${INSTALL_COCKPIT:-0}" == "1" ]]; then
   "${REPO_ROOT}/scripts/cockpit.sh" install
 fi
 
+# --- Private container registry ---------------------------------------------
+if [[ "${INSTALL_REGISTRY:-0}" == "1" ]]; then
+  "${REPO_ROOT}/scripts/registry.sh" install
+fi
+
 hr
 ok "Stack bootstrap complete. Run 'make label-gpus' then 'make status'."

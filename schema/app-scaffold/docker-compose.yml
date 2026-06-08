@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    image: __APP_NAME__-app:local
+    ports:
+      - "__APP_PORT__:__APP_PORT__"
+    environment:
+      - PORT=__APP_PORT__
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:__APP_PORT__/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

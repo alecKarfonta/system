@@ -58,9 +58,33 @@ for n in "${NODES[@]}"; do
   ok "$n -> tier=${tier}  product=${prod_label}  gpus=${count:-?}  vram=${vram_gb}GiB  cc=${cc}"
 done
 
+map_cpu_tier() {
+  local cores="$1" gpus="$2"
+  if [[ -z "$gpus" || "$gpus" == "0" ]]; then echo "cheap"; return; fi
+  if (( cores >= 32 )); then echo "performance"; return; fi
+  echo "standard"
+}
+
+title "Auto-labeling CPU tiers (cheap / standard / performance)"
+for n in "${NODES[@]}"; do
+  cores="$(kc get node "$n" -o jsonpath='{.metadata.labels.homelab/cpu-cores}' 2>/dev/null || true)"
+  if [[ -z "$cores" ]]; then
+    raw="$(kc get node "$n" -o jsonpath='{.status.allocatable.cpu}' 2>/dev/null || true)"
+    if [[ "$raw" == *m ]]; then cores=0; else cores="${raw%%.*}"; fi
+  fi
+  gpus="$(kc get node "$n" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}' 2>/dev/null || true)"
+  tier="$(map_cpu_tier "${cores:-0}" "${gpus:-0}")"
+  kc label node "$n" "homelab/cpu-tier=${tier}" --overwrite >/dev/null
+  ok "$n -> cpu-tier=${tier}  cores=${cores:-?}  gpus=${gpus:-0}"
+done
+
 hr
-echo "Target a tier in any pod/Job/Deployment with:"
+echo "Target GPU tier:"
 echo "    nodeSelector:"
 echo "      gpu.homelab/tier: training"
+echo
+echo "Target CPU tier (light services, batch glue, etc.):"
+echo "    nodeSelector:"
+echo "      homelab/cpu-tier: cheap"
 echo
 echo "Re-run this any time you add a node. It's safe and idempotent."

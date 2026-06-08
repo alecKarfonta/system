@@ -28,12 +28,14 @@ the actual silicon:
 | `gpu.homelab/product` | `NVIDIA-GeForce-RTX-3090-Ti` | card model |
 | `gpu.homelab/tier` | `training` | auto-mapped tier |
 | `homelab/cpu-cores`, `homelab/ram-gb` | `64`, `256` | host resources |
+| `homelab/cpu-tier` | `cheap`, `standard`, `performance` | CPU class for light vs heavy CPU work |
 
 So a workload can target hardware *capabilities*, not machine names:
 
 ```yaml
 nodeSelector:
   gpu.homelab/vram-gb: "24"      # or tier: training, or compute-cap: "8.6"
+  homelab/cpu-tier: cheap         # CPU-only / light services off the big boxes
 ```
 
 For range queries ("VRAM ≥ 20"), use node affinity with `Gt`, or the DRA DeviceClasses —
@@ -51,10 +53,29 @@ homelab status              fleet table: GPU model, count, VRAM, compute cap, ti
 homelab remove <node>       cordon → drain → delete (no downtime)
 homelab label <node> k=v    e.g. 'homelab label box1 tier=inference' (auto-prefixed)
 homelab stack | ui | cockpit  install the stack / open the GUIs
+homelab app list            registered apps + cluster deploy status
+homelab app validate-all    validate every app contract
+homelab app deploy <name>   build, apply, verify, sync nginx
+homelab app validate|diff|status|delete|verify <name>
 ```
 
 The make targets and bash scripts still work — the CLI is the nicer front door,
 and the only path that auto-labels hardware at join time.
+
+### Managed app deploys
+
+Apps implement a `system.yaml` contract in their repo; system holds `apps/<name>.yaml`
+and deploy tooling. See [`09-app-deploys.md`](09-app-deploys.md) for the full spec.
+
+```bash
+make app-init NAME=myapp REPO=~/git/myapp     # scaffold repo + register
+make app-list                                 # fleet table
+make app-deploy APP=plateforge                # full deploy pipeline
+homelab app deploy plateforge                 # same via CLI
+```
+
+Deploy runs: docker compose build → k3s image import → kustomize apply → rollout wait
+→ HTTP verify checks → nginx upstream sync (mlapi.us).
 
 ## Fleet Cockpit — the GPU-centric management GUI
 
@@ -77,6 +98,9 @@ What it shows, live (8s refresh):
 
 What you can DO from it:
 - **Scale** any Deployment up/down with +/− buttons.
+- **Manage workloads** — click MANAGE on any Deployment to set CPU tier scheduling
+  (prefer cheap → standard, avoid performance, etc.), CPU/memory requests & limits,
+  and rolling strategy (use Recreate for single-replica apps with RWO PVCs).
 - **Cordon/uncordon** a node (prep for maintenance without dropping anything).
 - **DRAIN a node, one click, with live progress.** The button arms first
   (click → CONFIRM DRAIN, auto-disarms in 4s) so you can't fat-finger it. It then
@@ -84,10 +108,10 @@ What you can DO from it:
   PodDisruptionBudget are retried while their replicas move, and the card shows an
   amber progress bar (evicted/total) until DRAINED. It never deletes the node
   object; do that with `homelab remove` when the box is really leaving.
-- **Reassign a node's tier** from a dropdown — re-routes future scheduling instantly.
+- **Reassign GPU and CPU tiers** from dropdowns on each node card — re-routes future scheduling instantly.
 
 Mutations are deliberately scoped: the Cockpit's RBAC can only read nodes/pods/deployments,
-patch node schedulability + `gpu.homelab/*` labels, and scale deployments. It cannot
+patch node schedulability + `gpu.homelab/*` / `homelab/cpu-tier` labels, and scale deployments. It cannot
 delete things or read secrets — so exposing it on your LAN is low-risk. (Still keep
 it off the public internet.)
 
