@@ -14,11 +14,34 @@ case "$ACTION" in
     [[ -f "${REPO_ROOT}/config/cluster.env" ]] && load_env "${REPO_ROOT}/config/cluster.env"
     title "Installing Fleet Cockpit"
     kc create namespace cockpit --dry-run=client -o yaml | kc apply -f - >/dev/null
+    APPS_JSON="$(python3 <<PY
+import json, subprocess, sys
+from pathlib import Path
+import yaml
+root = Path("${REPO_ROOT}")
+apps = []
+lib = root / "scripts/lib/app_config.py"
+for f in sorted((root / "apps").glob("*.yaml")):
+    name = f.stem
+    reg = yaml.safe_load(f.read_text()) or {}
+    entry = {"name": name, "repo": reg.get("repo", "")}
+    if lib.is_file():
+        r = subprocess.run([sys.executable, str(lib), name, "export"],
+                           capture_output=True, text=True)
+        if r.returncode == 0:
+            cfg = json.loads(r.stdout)
+            entry["namespace"] = cfg.get("namespace", "")
+            entry["deployment"] = cfg.get("deployment", "")
+    apps.append(entry)
+print(json.dumps(apps))
+PY
+)"
     kc -n cockpit create configmap cockpit-code \
         --from-file="${REPO_ROOT}/cockpit/app.py" \
         --from-file="${REPO_ROOT}/cockpit/index.html" \
         --from-file=install-nvidia-driver.sh="${REPO_ROOT}/scripts/install-nvidia-driver.sh" \
         --from-file=k3s-cni-sync.sh="${REPO_ROOT}/scripts/k3s-cni-sync.sh" \
+        --from-file=apps.json=<(echo "${APPS_JSON}") \
         --dry-run=client -o yaml | kc apply -f - >/dev/null
     # shellcheck source=lib/join-token.sh
     source "${REPO_ROOT}/scripts/lib/join-token.sh"
@@ -39,6 +62,7 @@ case "$ACTION" in
           --from-literal=gpu_operator_manages_driver="${GPU_OPERATOR_MANAGES_DRIVER:-0}" \
           --from-literal=nvidia_driver_package="${NVIDIA_DRIVER_PACKAGE:-}" \
           --from-literal=nvidia_driver_flavor="${NVIDIA_DRIVER_FLAVOR:-open}" \
+          --from-literal=system_root="${REPO_ROOT}" \
           --dry-run=client -o yaml | kc apply -f - >/dev/null
       ok "Join secret created (Add Node enabled in Cockpit)."
     else

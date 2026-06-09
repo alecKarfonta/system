@@ -355,6 +355,12 @@ tr:hover td{background:var(--phos-soft)}
   <div class="add-jobs" id="add-jobs"></div>
 </div>
 
+<div class="sec">MANAGED APPS</div>
+<table>
+  <thead><tr><th>APP</th><th>NAMESPACE</th><th>STATUS</th><th></th></tr></thead>
+  <tbody id="apps"><tr><td colspan="4" style="color:var(--dim)">loading…</td></tr></tbody>
+</table>
+
 <div class="sec">WORKLOADS</div>
 <table>
   <thead><tr><th>NAMESPACE / NAME</th><th>KIND</th><th class="num">GPUs</th>
@@ -398,7 +404,7 @@ const CPU_TIERS=["cheap","standard","performance","-"];
 const CPU_TIER_MODE_LABEL={
   any:"ANY", prefer_cheap:"PREF CHEAP", prefer_cheap_standard:"CHEAP→STD",
   avoid_performance:"NO PERF", cheap_only:"CHEAP ONLY"};
-let busy=false, armed={}, wlCache=[], wlEdit=null;
+let busy=false, armed={}, wlCache=[], wlEdit=null, anyAppJobs=false;
 
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");
   setTimeout(()=>t.classList.remove("show"),2400);}
@@ -990,22 +996,76 @@ function copyJoin(kind){
   const t=joinData[m[kind]]; if(!t) return toast("NOT CONFIGURED");
   navigator.clipboard.writeText(t).then(()=>toast("COPIED")).catch(()=>toast("COPY FAILED"));
 }
+async function loadApps(){
+  try{
+    const d=await api("/api/apps");
+    renderApps(d.apps||[]);
+  }catch(e){
+    $("#apps").innerHTML=`<tr><td colspan="4" style="color:var(--dim)">could not load apps — ${e.message}</td></tr>`;
+  }
+}
+function renderApps(apps){
+  const tbody=$("#apps");
+  if(!apps.length){
+    tbody.innerHTML=`<tr><td colspan="4" style="color:var(--dim)">no registered apps — add apps/*.yaml and re-run make cockpit</td></tr>`;
+    return;
+  }
+  tbody.innerHTML=apps.map(a=>{
+    const job=a.job;
+    const status=job?`<span class="badge warn">${job.phase.toUpperCase()}</span> ${job.msg||""}`:
+      a.phase==="running"?`<span class="badge tier inference">RUNNING</span> ${a.ready}`:
+      a.phase==="not_deployed"?`<span class="badge warn">NOT DEPLOYED</span>`:
+      `<span class="badge warn">${(a.phase||"?").toUpperCase()}</span> ${a.ready||""}`;
+    return `<tr><td><b>${a.name}</b><div style="color:var(--dim);font-size:11px">${a.repo||""}</div></td>
+      <td>${a.namespace||"—"}</td><td>${status}</td>
+      <td><button onclick="deployApp('${a.name}')" ${job?"disabled":""}>DEPLOY</button></td></tr>`;
+  }).join("");
+}
+async function deployApp(name){
+  if(!joinData.server_host) return toast("JOIN NOT CONFIGURED — run make cockpit");
+  const p={app:name, host:joinData.server_host, user:$("#ssh-user").value.trim()||"alec",
+    port:parseInt($("#ssh-port").value,10)||22, use_saved_key:$("#ssh-use-saved").checked};
+  if($("#ssh-auth").value==="password"){
+    p.use_password=true;
+    p.password=$("#ssh-password").value||"";
+    p.use_saved_key=false;
+    if(!p.password){
+      if(!resolveSshAuth(p)) return toast("SSH auth cancelled");
+    }
+  }else if(!p.use_saved_key){
+    p.key=$("#ssh-key").value;
+    if(!p.key?.trim()&&!resolveSshAuth(p)) return toast("SSH auth cancelled");
+  }
+  if(!confirm(`Deploy ${name} on controller (${p.host})?\n\nBuilds the image via Docker and applies manifests.`)) return;
+  busy=true;
+  try{
+    await api("/api/app/deploy",p);
+    toast(`DEPLOY STARTED — ${name}`);
+    pollAddJobs(); loadApps();
+  }catch(e){toast("ERR "+e.message);}
+  busy=false;
+}
 async function pollAddJobs(){
   try{
-    const [jobs, djobs, rjobs]=await Promise.all([
+    const [jobs, djobs, rjobs, ajobs]=await Promise.all([
       api("/api/add-node/jobs"),
       api("/api/driver/jobs").catch(()=>({})),
       api("/api/rename/jobs").catch(()=>({})),
+      api("/api/app/jobs").catch(()=>({})),
     ]);
     const el=$("#add-jobs");
-    const entries=[...Object.values(jobs||{}), ...Object.values(djobs||{}), ...Object.values(rjobs||{})];
+    const entries=[...Object.values(jobs||{}), ...Object.values(djobs||{}),
+      ...Object.values(rjobs||{}), ...Object.values(ajobs||{})];
     anyAddJobs=Object.values(jobs||{}).some(j=>!["done","error","timeout"].includes(j.phase));
     anyDriverJobs=Object.values(djobs||{}).some(j=>!["done","error","timeout"].includes(j.phase));
     anyRenameJobs=Object.values(rjobs||{}).some(j=>!["done","error","timeout"].includes(j.phase));
+    anyAppJobs=Object.values(ajobs||{}).some(j=>!["done","error","timeout"].includes(j.phase));
+    if(anyAppJobs) loadApps();
     if(!entries.length){el.innerHTML=""; return;}
     el.innerHTML=entries.sort((a,b)=>b.ts-a.ts).map(j=>{
       const cls=j.phase==="done"?"done":(j.phase==="error"||j.phase==="timeout")?"error":"";
-      const lbl=j.id?.startsWith("rename-")?`RENAME ${j.node||"?"} → ${j.new_name||j.node||"?"}`:
+      const lbl=j.id?.startsWith("app-")?`DEPLOY ${j.app||"?"}`:
+        j.id?.startsWith("rename-")?`RENAME ${j.node||"?"} → ${j.new_name||j.node||"?"}`:
         j.id?.startsWith("driver-")?`DRIVER ${j.node||j.host}`:
         j.method==="ssh"?`SSH ${j.host}`:`WATCH ${j.expected||"any"}`;
       return `<div class="add-job ${cls}"><span class="aj-phase">${j.phase.toUpperCase()}</span> · ${lbl}
@@ -1113,6 +1173,7 @@ async function refresh(){
     $("#s-gpu").textContent=`${used} / ${tot}`;
     const utils=gpus.length?gpus.map(g=>g.util||0):Object.values(tel).flat().map(g=>g.util||0);
     $("#s-load").textContent=utils.length?Math.round(utils.reduce((a,b)=>a+b,0)/utils.length)+"%":"—";
+    loadApps();
   }catch(e){
     $("#err").style.display="block";
     $("#err").textContent="LINK DOWN — "+e.message;
@@ -1145,7 +1206,7 @@ loadJoin();
 refresh();
 setInterval(refresh,8000);
 setInterval(()=>{ if(anyDraining) refresh(); },1500);
-setInterval(()=>{ if(anyAddJobs||anyDriverJobs||anyRenameJobs) pollAddJobs(); },1500);
+setInterval(()=>{ if(anyAddJobs||anyDriverJobs||anyRenameJobs||anyAppJobs) pollAddJobs(); },1500);
 pollAddJobs();
 </script>
 </body>

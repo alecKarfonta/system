@@ -3,7 +3,7 @@
 cluster. Talks to the Kubernetes API with the pod's ServiceAccount and scrapes
 DCGM exporters directly for live per-GPU telemetry (util/temp/VRAM/power).
 Set HOMELAB_DEMO=1 to run locally with animated fake data."""
-import base64, json, os, random, re, ssl, subprocess, tempfile, threading, time
+import base64, json, os, random, re, shlex, ssl, subprocess, tempfile, threading, time
 import urllib.error, urllib.parse, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -16,6 +16,7 @@ SA   = "/var/run/secrets/kubernetes.io/serviceaccount"
 JOIN = Path("/var/run/secrets/join")
 SSH_SEC = Path("/var/run/secrets/ssh")
 HTML = Path(__file__).parent / "index.html"
+APPS_FILE = Path(__file__).parent / "apps.json"
 
 def _cni_post_join_sh():
     """Install and run k3s-cni-sync on the remote node after k3s join."""
@@ -978,6 +979,8 @@ def _join_cfg():
                          or api.get("k3s_channel") or "stable",
         "token": token,
         "configured": bool(token and host),
+        "system_root": (os.environ.get("SYSTEM_ROOT") or _read("system_root")
+                        or api.get("system_root", "")),
     }
 
 def join_info():
@@ -1620,7 +1623,11 @@ def _resolve_ssh_key(body):
     for name in ("id_ed25519", "id_rsa", "key"):
         p = SSH_SEC / name
         if p.is_file():
-            return str(p)
+            fd, path = tempfile.mkstemp(prefix="cockpit-ssh-", text=True)
+            with os.fdopen(fd, "wb") as f:
+                f.write(p.read_bytes())
+            os.chmod(path, 0o600)
+            return path
     if pasted:
         fd, path = tempfile.mkstemp(prefix="cockpit-ssh-", text=True)
         with os.fdopen(fd, "w") as f:
@@ -1830,12 +1837,149 @@ def act_add_watch(b):
     threading.Thread(target=run, daemon=True).start()
     return {"ok": True, "id": job_id}
 
+# ----------------------------------------------------------- managed app deploy
+def _managed_apps_registry():
+    if DEMO:
+        return [{"name": "plateforge", "repo": "~/git/electroplate",
+                 "namespace": "plateforge", "deployment": "backend"}]
+    try:
+        return json.loads(APPS_FILE.read_text())
+    except Exception:
+        return []
+
+def _app_cluster_status(entry):
+    ns = entry.get("namespace") or ""
+    dep = entry.get("deployment") or ""
+    empty = {"ready": "—", "phase": "unknown", "replicas": 0, "updated": 0}
+    if not ns or not dep:
+        return empty
+    if DEMO:
+        return {"ready": "1/1", "phase": "running", "replicas": 1, "updated": 1}
+    try:
+        d = k8s("GET", f"/apis/apps/v1/namespaces/{ns}/deployments/{dep}")
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return {"ready": "0/0", "phase": "not_deployed", "replicas": 0, "updated": 0}
+        return empty
+    except Exception:
+        return empty
+    spec = d.get("spec", {})
+    st = d.get("status", {})
+    desired = spec.get("replicas", 1) or 0
+    ready = st.get("readyReplicas") or 0
+    updated = st.get("updatedReplicas") or 0
+    if ready >= desired and ready > 0:
+        phase = "running"
+    elif updated:
+        phase = "deploying"
+    else:
+        phase = "missing"
+    return {"ready": f"{ready}/{desired}", "phase": phase,
+            "replicas": ready, "updated": updated}
+
+APP_JOBS, _APJLOCK = {}, threading.Lock()
+
+def app_jobs_snapshot():
+    with _APJLOCK:
+        return {k: dict(v) for k, v in APP_JOBS.items()}
+
+def apps_snapshot():
+    reg = _managed_apps_registry()
+    with _APJLOCK:
+        active = {j.get("app"): j for j in APP_JOBS.values()
+                  if j.get("phase") not in ("done", "error", "timeout")}
+    out = []
+    for entry in reg:
+        st = _app_cluster_status(entry)
+        job = active.get(entry["name"])
+        if job:
+            st["job"] = {"id": job["id"], "phase": job["phase"], "msg": job.get("msg", "")}
+        out.append({**entry, **st})
+    return {"apps": out, "system_root": _join_cfg().get("system_root", "")}
+
+def _demo_app_deploy(job_id, app):
+    st = APP_JOBS[job_id]
+    for phase, msg, delay in (
+        ("connecting", f"SSH controller (demo)…", 1.2),
+        ("deploying", f"building {app}…", 2.5),
+        ("deploying", "applying manifests…", 1.5),
+        ("done", f"{app} deployed (demo)", 0),
+    ):
+        st.update(phase=phase, msg=msg)
+        if delay:
+            time.sleep(delay)
+
+def _ssh_app_deploy(job_id, body):
+    st = APP_JOBS[job_id]
+    app = (body.get("app") or "").strip()
+    cfg = _join_cfg()
+    host = (body.get("host") or cfg.get("server_host") or "").strip()
+    sys_root = (cfg.get("system_root") or "").strip()
+    if not host:
+        st.update(phase="error", msg="server_host not configured — re-run make cockpit")
+        return
+    if not sys_root:
+        st.update(phase="error", msg="system_root not in join secret — re-run make cockpit")
+        return
+    user = body.get("user", "alec").strip() or "alec"
+    port = int(body.get("port") or 22)
+    auth = None
+    try:
+        auth = _resolve_ssh_auth(body)
+        st.update(phase="connecting", msg=f"SSH {user}@{host}…")
+        proc = _ssh_exec(auth, port, user, host, "true", timeout=20)
+        if proc.returncode != 0:
+            st.update(phase="error", msg=_ssh_err(proc, auth))
+            return
+        script = f"""set -euo pipefail
+cd {shlex.quote(sys_root)}
+export KUBECONFIG="${{KUBECONFIG:-$HOME/.kube/config}}"
+./scripts/deploy-app.sh {shlex.quote(app)} deploy
+"""
+        st.update(phase="deploying",
+                  msg=f"building and deploying {app} on controller (may take several minutes)…")
+        proc = _ssh_exec(auth, port, user, host, "bash -s", stdin=script, timeout=1800)
+        out = _proc_tail(proc, "")
+        if proc.returncode != 0:
+            st.update(phase="error", msg=out or "deploy failed")
+            return
+        st.update(phase="done", msg=out or f"{app} deployed")
+    except subprocess.TimeoutExpired:
+        st.update(phase="error", msg="deploy timed out after 30 minutes")
+    except Exception as e:
+        st.update(phase="error", msg=str(e))
+    finally:
+        if auth and auth.get("cleanup") and auth.get("keypath"):
+            try:
+                os.unlink(auth["keypath"])
+            except OSError:
+                pass
+
+def act_app_deploy(b):
+    app = (b.get("app") or "").strip()
+    if not app:
+        raise ValueError("app required")
+    names = {a["name"] for a in _managed_apps_registry()}
+    if app not in names:
+        raise ValueError(f"unknown app: {app}")
+    job_id = f"app-{app}-{int(time.time())}"
+    with _APJLOCK:
+        APP_JOBS[job_id] = {"id": job_id, "app": app, "host": b.get("host", ""),
+                            "phase": "queued", "msg": "starting deploy…", "ts": time.time()}
+    fn = _demo_app_deploy if DEMO else _ssh_app_deploy
+    if DEMO:
+        threading.Thread(target=fn, args=(job_id, app), daemon=True).start()
+    else:
+        threading.Thread(target=fn, args=(job_id, b), daemon=True).start()
+    return {"ok": True, "id": job_id}
+
 ACTIONS = {"/api/scale": act_scale, "/api/workload/configure": act_workload_configure,
            "/api/cordon": act_cordon,
            "/api/label": act_label, "/api/drain": act_drain,
            "/api/add-node/ssh": act_add_ssh, "/api/add-node/watch": act_add_watch,
            "/api/add-node/ssh-test": act_ssh_test, "/api/driver/install": act_driver_install,
-           "/api/node/rename": act_node_rename, "/api/node/suggest-name": act_suggest_name}
+           "/api/node/rename": act_node_rename, "/api/node/suggest-name": act_suggest_name,
+           "/api/app/deploy": act_app_deploy}
 
 # ----------------------------------------------------------------- http
 class H(BaseHTTPRequestHandler):
@@ -1868,6 +2012,11 @@ class H(BaseHTTPRequestHandler):
             self._send(200, rename_jobs_snapshot())
         elif path == "/api/driver/config":
             self._send(200, _driver_cfg())
+        elif path == "/api/apps":
+            try: self._send(200, apps_snapshot())
+            except Exception as e: self._send(502, {"error": str(e)})
+        elif path == "/api/app/jobs":
+            self._send(200, app_jobs_snapshot())
         else: self._send(404, {"error": "not found"})
     def do_POST(self):
         fn = ACTIONS.get(urllib.parse.urlparse(self.path).path)
