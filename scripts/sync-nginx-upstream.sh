@@ -53,7 +53,7 @@ resolve_host() {
             return
         fi
     fi
-    echo "127.0.0.1"
+    echo "localhost"
 }
 
 RESOLVED_HOST="$(resolve_host)"
