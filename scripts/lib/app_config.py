@@ -193,8 +193,17 @@ def validate_config(config: dict[str, Any]) -> list[str]:
     nginx_app = config.get("nginx_app")
     if nginx_app:
         root = SYSTEM_ROOT
-        if not (root / "nginx" / "apps" / f"{nginx_app}.conf").exists():
-            errors.append(f"missing nginx app config: nginx/apps/{nginx_app}.conf")
+        apps_root = root / "nginx" / "apps"
+        # Per-site subdir layout (nginx/apps/<site>/<app>.conf) is the canonical
+        # location; a flat nginx/apps/<app>.conf is accepted for backwards compat.
+        found_app = next(
+            (apps_root.rglob(f"{nginx_app}.conf")),
+            None,
+        )
+        if not found_app:
+            errors.append(
+                f"missing nginx app config: nginx/apps/<site>/{nginx_app}.conf"
+            )
         if not (root / "nginx" / "upstreams" / f"{nginx_app}.conf").exists():
             errors.append(f"missing nginx upstream: nginx/upstreams/{nginx_app}.conf")
 

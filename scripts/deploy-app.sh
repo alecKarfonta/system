@@ -200,7 +200,12 @@ for check in checks:
     url = check["url"]
     expect = check.get("expect_status", 200)
     desc = check.get("description", url)
-    request = urllib.request.Request(url, method="GET")
+    # Cloudflare Bot Fight Mode 403s requests with no/empty User-Agent.
+    # urllib's default UA is "Python-urllib/<ver>" which is enough on most
+    # origins, but be explicit so verify works reliably behind any edge.
+    request = urllib.request.Request(
+        url, method="GET", headers={"User-Agent": "system-deploy-verify/1.0"}
+    )
     try:
         with urllib.request.urlopen(request, timeout=15) as response:
             status = response.status
@@ -234,8 +239,15 @@ install_nginx_if_configured() {
     fi
 
     local installer="${SYSTEM_ROOT}/scripts/install-nginx-app.sh"
-    if [[ ! -f "${SYSTEM_ROOT}/nginx/apps/${CONFIG_NGINX_APP}.conf" ]]; then
-        warn "No nginx/apps/${CONFIG_NGINX_APP}.conf — skipping install"
+    # Per-site subdir layout (nginx/apps/<site>/<app>.conf) is canonical;
+    # a flat nginx/apps/<app>.conf is accepted for backwards compat.
+    local nginx_app_conf=""
+    while IFS= read -r -d '' conf; do
+        nginx_app_conf="${conf}"
+        break
+    done < <(find "${SYSTEM_ROOT}/nginx/apps" -type f -name "${CONFIG_NGINX_APP}.conf" -print0 2>/dev/null)
+    if [[ -z "${nginx_app_conf}" ]]; then
+        warn "No nginx/apps/<site>/${CONFIG_NGINX_APP}.conf — skipping install"
         return 0
     fi
 

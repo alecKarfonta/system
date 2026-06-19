@@ -12,6 +12,9 @@ REPO="${REPO:-${2:-}}"
 PORT="${PORT:-8080}"
 CPU_TIER="${CPU_TIER:-cheap}"
 GHCR_ORG="${GHCR_ORG:-aleckarfonta}"
+# Default site for the per-site nginx subdir layout. Most apps live under
+# mlapi.us; stockastic.us is reserved for stocker (root-served).
+NGINX_SITE="${NGINX_SITE:-mlapi.us}"
 REGISTER="${REGISTER:-1}"
 SCAFFOLD="${SYSTEM_ROOT}/schema/app-scaffold"
 
@@ -75,15 +78,16 @@ title "Scaffolding app '${NAME}' → ${REPO}"
 copy_tree "${SCAFFOLD}" "${REPO}"
 chmod +x "${REPO}/scripts/deploy-k8s.sh"
 
-NGINX_APP="${SYSTEM_ROOT}/nginx/apps/${NAME}.conf"
+NGINX_SITE_DIR="${SYSTEM_ROOT}/nginx/apps/${NGINX_SITE}"
+NGINX_APP="${NGINX_SITE_DIR}/${NAME}.conf"
 NGINX_UP="${SYSTEM_ROOT}/nginx/upstreams/${NAME}.conf"
 if [[ ! -f "${NGINX_APP}" ]]; then
-    mkdir -p "$(dirname "${NGINX_APP}")" "$(dirname "${NGINX_UP}")"
+    mkdir -p "${NGINX_SITE_DIR}" "$(dirname "${NGINX_UP}")"
     subst < "${SCAFFOLD}/nginx/apps/app.conf" > "${NGINX_APP}"
     subst < "${SCAFFOLD}/nginx/upstreams/app.conf" > "${NGINX_UP}"
-    ok "Created nginx configs: nginx/apps/${NAME}.conf"
+    ok "Created nginx configs: nginx/apps/${NGINX_SITE}/${NAME}.conf"
 else
-    warn "nginx/apps/${NAME}.conf exists — not overwriting"
+    warn "nginx/apps/${NGINX_SITE}/${NAME}.conf exists — not overwriting"
 fi
 
 REGISTRY="${SYSTEM_ROOT}/apps/${NAME}.yaml"

@@ -33,7 +33,13 @@ PY
 UPSTREAM_FILE="${SYSTEM_ROOT}/nginx/upstreams/${NGINX_APP}.conf"
 [[ -f "${UPSTREAM_FILE}" ]] || die "Missing ${UPSTREAM_FILE}"
 
-load_env 2>/dev/null || true
+# cluster.env is optional for upstream sync (we only need MLAPI_UPSTREAM_HOST /
+# MLAPI_USE_LB overrides; everything else has sensible defaults below).
+# load_env calls die() on a missing file, which can't be caught by `|| true`,
+# so guard with the file-existence check instead.
+if [[ -f "${REPO_ROOT}/config/cluster.env" ]]; then
+    load_env "${REPO_ROOT}/config/cluster.env"
+fi
 
 resolve_host() {
     if [[ -n "${MLAPI_UPSTREAM_HOST:-}" ]]; then
