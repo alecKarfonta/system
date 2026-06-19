@@ -228,50 +228,84 @@ Homelab overlay conventions:
 - `imagePullPolicy: IfNotPresent`
 - Schedule via `import_nodes` label (e.g. `homelab/cpu-tier=cheap`)
 
-## Nginx (mlapi.us edge)
+## Nginx edge (multi-site)
 
-The mlapi.us edge nginx is fully managed from this repo. The source of truth is:
+The edge nginx is fully managed from this repo. The source of truth is:
 
 ```
 nginx/
-├── mlapi.us.conf             # site server block (TLS, server_name, app include glob)
-├── snippets/*.conf           # shared location snippets (proxy, ssl, security, …)
-├── apps/<name>.conf          # per-app location blocks
-└── upstreams/<name>.conf     # per-app upstream server definitions
+├── <site>.conf                  # one site server block per domain (mlapi.us.conf, stockastic.us.conf, …)
+├── snippets/*.conf              # shared location snippets (proxy, ssl, security, …)
+├── apps/<site>/<app>.conf       # per-app location blocks, grouped by site
+└── upstreams/<app>.conf         # per-app upstream server definitions
 ```
 
-The site uses `include /etc/nginx/conf.d/apps/*.conf;` so any newly installed
-app conf is picked up automatically — **no per-app hand-editing of the site
-file**. Adding a new app's edge routing is purely a matter of dropping its
-conf into `nginx/apps/` and running the installer.
+Each site uses `include /etc/nginx/conf.d/apps/<site>/*.conf;` so any newly
+installed app conf is picked up automatically — **no per-app hand-editing of
+any site file**. Apps are grouped per-site so confs belonging to different
+domains cannot collide on root-level locations (this is why
+`stocker-at-root.conf` lives under `apps/stockastic.us/`, not
+`apps/mlapi.us/` — it has its own `location /` catchall).
+
+### Adding an app
+
+1. Pick the site the app belongs to (most go under `mlapi.us`).
+2. Drop its location conf into `nginx/apps/<site>/<app>.conf`.
+3. Drop its upstream def into `nginx/upstreams/<app>.conf`.
+4. Run `sudo scripts/install-nginx-app.sh <app>` (site auto-detected).
 
 ### What `install-nginx-app.sh` does
 
-One command installs everything end-to-end. Runs as sudo (writes under
-`/etc/nginx/`, reloads nginx).
+Runs as sudo (writes under `/etc/nginx/`, reloads nginx):
 
 ```
-sudo scripts/install-nginx-app.sh <app>        # one app + sync site/snippets
-sudo scripts/install-nginx-app.sh --all        # every app in nginx/apps/
-sudo scripts/install-nginx-app.sh --site-only  # just site + snippets (no apps)
+sudo scripts/install-nginx-app.sh <app> [site]  # one app + sync all sites/snippets
+sudo scripts/install-nginx-app.sh --all         # sync every site + snippet + every committed app
+sudo scripts/install-nginx-app.sh --sites-only  # sync sites + snippets only (no apps)
+sudo scripts/install-nginx-app.sh --migrate     # move flat apps/*.conf into apps/<site>/ subdirs
 ```
 
 For each run it:
 
-1. Symlinks `nginx/mlapi.us.conf` → `/etc/nginx/sites-available/mlapi.us`
-   (and `sites-enabled/`). The first time, any pre-existing hand-managed file
-   is backed up.
+1. Symlinks `nginx/<site>.conf` → `/etc/nginx/sites-available/<site>` (and
+   `sites-enabled/`) for **every** site in the repo. Pre-existing regular
+   files are backed up.
 2. Copies every `nginx/snippets/*.conf` → `/etc/nginx/snippets/` (with backup).
-3. Copies the app's `nginx/apps/<app>.conf` → `/etc/nginx/conf.d/apps/`.
-4. Merges the app's upstream blocks into `/etc/nginx/conf.d/00-upstreams.conf`.
-5. Runs `nginx -t` and `systemctl reload nginx`.
+3. (App modes only) Copies the app's conf into
+   `/etc/nginx/conf.d/apps/<site>/`.
+4. (App modes only) Merges the app's upstream blocks into
+   `/etc/nginx/conf.d/00-upstreams.conf`.
+5. Runs `nginx -t` and `systemctl reload nginx` (skipped for `--migrate`).
+
+Site for an app is auto-detected from `nginx/apps/<site>/<app>.conf` — pass
+the site explicitly only if the same app name exists under multiple sites.
+
+### One-time migration from flat layout
+
+If `/etc/nginx/conf.d/apps/` contains flat `<app>.conf` files (pre-restructure
+layout), run once:
+
+```
+sudo scripts/install-nginx-app.sh --migrate
+sudo scripts/install-nginx-app.sh --sites-only   # or --all
+```
+
+`--migrate` assigns each flat conf to a site by:
+1. Convention: `*-at-root` → `stockastic.us`.
+2. Parsing the pre-migration site backups in `sites-available/*.bak.*` to
+   recover each site's old explicit include list.
+3. Repo lookup (`nginx/apps/<site>/<app>.conf`).
+4. Fallback: `mlapi.us`.
+
+It does **not** reload nginx (the site file likely still has the old glob).
+Follow with `--sites-only` to swap in the scoped-glob site files and reload.
 
 ### Makefile shortcuts
 
 ```bash
 make nginx-install APP=noggin   # sudo install-nginx-app.sh noggin
 make nginx-install-all          # sudo install-nginx-app.sh --all
-make nginx-sync                 # sudo install-nginx-app.sh --site-only
+make nginx-sync                 # sudo install-nginx-app.sh --sites-only
 ```
 
 ### How it plugs into the deploy pipeline
@@ -279,7 +313,7 @@ make nginx-sync                 # sudo install-nginx-app.sh --site-only
 `make app-deploy APP=<app>` runs the nginx step automatically **before** the
 verify step, so first deploys pass the edge health check cleanly:
 
-1. Validate → build → import image → apply manifests → rollout
+1. Validate → ensure namespace → build → import image → apply manifests → rollout
 2. **Install nginx edge** (`install-nginx-app.sh <app>`)
 3. Run verify checks (local + public URLs)
 
@@ -303,16 +337,17 @@ make app-deploy APP=noggin
 ### Recovering the edge on a fresh box
 
 ```bash
-sudo make nginx-install-all   # site + snippets + every committed app conf
+sudo make nginx-install-all   # every site + snippets + every committed app conf
 ```
 
 ### SSL certificate dependency
 
-`nginx/snippets/ssl-params.conf` references Let's Encrypt certs at the standard
-certbot paths. On a fresh box:
+`nginx/snippets/ssl-params.conf` and `nginx/snippets/ssl-stockastic.us.conf`
+reference Let's Encrypt certs at the standard certbot paths. On a fresh box:
 
 ```bash
 sudo certbot certonly --nginx -d mlapi.us -d www.mlapi.us
+sudo certbot certonly --nginx -d stockastic.us -d www.stockastic.us
 ```
 
 ## Required fields
