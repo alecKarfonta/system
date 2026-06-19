@@ -156,14 +156,17 @@ exec ~/git/system/scripts/deploy-app.sh myapp "${1:-deploy}"
 `deploy-app.sh` runs these steps in order:
 
 1. **Validate** — contract + k8s layout + nginx configs exist
-2. **Build** — `docker compose build <service>` in app repo
-3. **Deliver image** (homelab overlay):
+2. **Ensure namespace** — create namespace so the image-import step (next) can
+   schedule its helper Pod
+3. **Build** — `docker compose build <service>` in app repo
+4. **Deliver image** (homelab overlay):
    - `import` (default): k3s ctr import on server + nodes matching `import_nodes`
    - `registry`: push to homelab private registry (`make registry`)
-4. **Apply** — server-side apply of kustomize overlay
-5. **Rollout** — wait for deployment ready
-6. **Verify** — HTTP checks from `system.yaml` `verify:` block
-7. **Nginx** — sync upstream IPs, install/reload mlapi.us config
+5. **Apply** — server-side apply of kustomize overlay
+6. **Rollout** — wait for deployment ready
+7. **Nginx** — sync upstream IPs, install/reload mlapi.us config (so the
+   public URL is reachable for verify)
+8. **Verify** — HTTP checks from `system.yaml` `verify:` block
 
 ### Environment overrides
 
@@ -227,29 +230,89 @@ Homelab overlay conventions:
 
 ## Nginx (mlapi.us edge)
 
-Each app with `nginx.name` in `system.yaml` gets:
+The mlapi.us edge nginx is fully managed from this repo. The source of truth is:
 
-- `nginx/apps/<name>.conf` — location blocks (proxy to upstream)
-- `nginx/upstreams/<name>.conf` — upstream server definitions
-
-On deploy, `sync-nginx-upstream.sh`:
-
-1. Resolves upstream host (default `127.0.0.1` for k3s ServiceLB)
-2. Patches upstream ports from `nginx.upstreams` in `system.yaml`
-3. `install-nginx-app.sh` copies configs to `/etc/nginx/conf.d/` and reloads
-
-Override upstream host in `config/cluster.env`:
-
-```bash
-MLAPI_UPSTREAM_HOST=192.168.1.196    # force specific host
-MLAPI_USE_LB=1                        # use LoadBalancer IP instead of 127.0.0.1
+```
+nginx/
+├── mlapi.us.conf             # site server block (TLS, server_name, app include glob)
+├── snippets/*.conf           # shared location snippets (proxy, ssl, security, …)
+├── apps/<name>.conf          # per-app location blocks
+└── upstreams/<name>.conf     # per-app upstream server definitions
 ```
 
-Manual nginx install:
+The site uses `include /etc/nginx/conf.d/apps/*.conf;` so any newly installed
+app conf is picked up automatically — **no per-app hand-editing of the site
+file**. Adding a new app's edge routing is purely a matter of dropping its
+conf into `nginx/apps/` and running the installer.
+
+### What `install-nginx-app.sh` does
+
+One command installs everything end-to-end. Runs as sudo (writes under
+`/etc/nginx/`, reloads nginx).
+
+```
+sudo scripts/install-nginx-app.sh <app>        # one app + sync site/snippets
+sudo scripts/install-nginx-app.sh --all        # every app in nginx/apps/
+sudo scripts/install-nginx-app.sh --site-only  # just site + snippets (no apps)
+```
+
+For each run it:
+
+1. Symlinks `nginx/mlapi.us.conf` → `/etc/nginx/sites-available/mlapi.us`
+   (and `sites-enabled/`). The first time, any pre-existing hand-managed file
+   is backed up.
+2. Copies every `nginx/snippets/*.conf` → `/etc/nginx/snippets/` (with backup).
+3. Copies the app's `nginx/apps/<app>.conf` → `/etc/nginx/conf.d/apps/`.
+4. Merges the app's upstream blocks into `/etc/nginx/conf.d/00-upstreams.conf`.
+5. Runs `nginx -t` and `systemctl reload nginx`.
+
+### Makefile shortcuts
 
 ```bash
-scripts/sync-nginx-upstream.sh plateforge
-sudo scripts/install-nginx-app.sh plateforge
+make nginx-install APP=noggin   # sudo install-nginx-app.sh noggin
+make nginx-install-all          # sudo install-nginx-app.sh --all
+make nginx-sync                 # sudo install-nginx-app.sh --site-only
+```
+
+### How it plugs into the deploy pipeline
+
+`make app-deploy APP=<app>` runs the nginx step automatically **before** the
+verify step, so first deploys pass the edge health check cleanly:
+
+1. Validate → build → import image → apply manifests → rollout
+2. **Install nginx edge** (`install-nginx-app.sh <app>`)
+3. Run verify checks (local + public URLs)
+
+The upstream host is resolved by `sync-nginx-upstream.sh`:
+
+- `MLAPI_UPSTREAM_HOST=<ip>` (config/cluster.env) — force a specific origin host
+- `MLAPI_USE_LB=1` — use the k3s LoadBalancer ingress IP instead of `127.0.0.1`
+- default — `localhost` (k3s ServiceLB listens on the origin box)
+
+### Manual install / re-sync
+
+```bash
+# Refresh upstream IPs from cluster state, then install
+scripts/sync-nginx-upstream.sh noggin
+sudo scripts/install-nginx-app.sh noggin
+
+# Or do everything via the deploy pipeline
+make app-deploy APP=noggin
+```
+
+### Recovering the edge on a fresh box
+
+```bash
+sudo make nginx-install-all   # site + snippets + every committed app conf
+```
+
+### SSL certificate dependency
+
+`nginx/snippets/ssl-params.conf` references Let's Encrypt certs at the standard
+certbot paths. On a fresh box:
+
+```bash
+sudo certbot certonly --nginx -d mlapi.us -d www.mlapi.us
 ```
 
 ## Required fields

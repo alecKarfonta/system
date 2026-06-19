@@ -12,7 +12,8 @@ S := ./scripts
         registry registry-nodes registry-secret registry-verify \
         plateforge-images plateforge-images-sync plateforge-images-resolve \
         app-validate app-deploy app-diff app-status app-delete app-verify app-register \
-        app-init app-list app-validate-all
+        app-init app-list app-validate-all \
+        nginx-install nginx-install-all nginx-sync
 
 help: ## Show this help
 	@echo ""
@@ -135,6 +136,16 @@ app-list: ## List registered apps and cluster status
 
 app-validate-all: ## Validate all registered app contracts
 	@$(S)/list-apps.sh validate-all
+
+nginx-install: ## Install nginx edge config for one app. Usage: make nginx-install APP=foo
+	@test -n "$(APP)" || { echo "Usage: make nginx-install APP=<name>"; exit 1; }
+	@sudo $(S)/install-nginx-app.sh "$(APP)"
+
+nginx-install-all: ## Sync site + snippets + every nginx/apps/*.conf to the edge
+	@sudo $(S)/install-nginx-app.sh --all
+
+nginx-sync: ## Sync only the mlapi.us site + snippets (no app confs)
+	@sudo $(S)/install-nginx-app.sh --site-only
 
 dashboard: ## Install Headlamp, a web GUI for the cluster (run once)
 	@$(S)/dashboard.sh install

@@ -87,6 +87,19 @@ apply_manifests() {
     kustomize_build | kc apply --server-side --field-manager=system-deploy --force-conflicts -f -
 }
 
+# Apply just the namespace so the import step (which schedules a Pod in the
+# namespace) can run before the full manifest apply. Idempotent — uses
+# server-side apply so it won't conflict with the later full apply.
+ensure_namespace() {
+    local ns_file="${CONFIG_REPO}/k8s/base/namespace.yaml"
+    if [[ -f "${ns_file}" ]]; then
+        kc apply --server-side --field-manager=system-deploy -f "${ns_file}" >/dev/null 2>&1 || true
+    else
+        kc create namespace "${CONFIG_NAMESPACE}" --dry-run=client -o yaml \
+            | kc apply --server-side --field-manager=system-deploy -f - >/dev/null 2>&1 || true
+    fi
+}
+
 tag_built_image() {
     if docker image inspect "${CONFIG_IMAGE_LOCAL}" >/dev/null 2>&1; then
         ok "Image ready: ${CONFIG_IMAGE_LOCAL}"
@@ -245,6 +258,10 @@ deploy() {
 
     info "storage.sessions.type=${CONFIG_STORAGE_SESSIONS} (override: SESSIONS_STORAGE=emptyDir|pvc)"
 
+    # Ensure the namespace exists before importing images — the import step
+    # schedules a Pod in this namespace and fails if it doesn't exist yet.
+    ensure_namespace
+
     if [[ "${CONFIG_OVERLAY}" == "homelab" ]]; then
         build_compose_image
         deliver_homelab_image
@@ -259,12 +276,14 @@ deploy() {
     kc -n "${CONFIG_NAMESPACE}" rollout status "deployment/${CONFIG_DEPLOYMENT}" --timeout=300s
     kc -n "${CONFIG_NAMESPACE}" get pods,svc -o wide
 
+    # Install edge routing BEFORE verify so the public health check can reach
+    # the freshly-deployed pods on a first deploy. Use SKIP_NGINX=1 to defer.
+    install_nginx_if_configured
+
     if [[ "${SKIP_VERIFY:-}" != "1" ]]; then
         title "Verify checks"
         run_verify
     fi
-
-    install_nginx_if_configured
 }
 
 case "${COMMAND}" in
