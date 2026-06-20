@@ -42,9 +42,103 @@ make app-deploy APP=myapp
 ```
 
 `app-init` creates the app repo layout, registers `apps/myapp.yaml`, and adds
-`nginx/apps/myapp.conf` + `nginx/upstreams/myapp.conf` in system.
+`nginx/apps/<site>/<myapp>.conf` + `nginx/upstreams/<myapp>.conf` in system
+(default site: `mlapi.us`; override with `NGINX_SITE=stockastic.us`).
 
-## Contract
+### Static web apps (quick recipe)
+
+Most browser games and static frontends follow the same pattern as **noggin**,
+**cardcam**, and **arcade** — no Python API, no build step (or a separate
+`Dockerfile.managed` when the repo already has a dev Dockerfile).
+
+**1. Scaffold and register**
+
+```bash
+cd ~/git/system
+make app-init NAME=myapp REPO=~/git/myapp PORT=31022 CPU_TIER=cheap
+```
+
+Pick the next free LoadBalancer port (31017 glorp, 31018 bone, 31019 noggin,
+31020 cardcam, 31021 arcade, …).
+
+**2. Replace the Python stub with nginx static serving**
+
+In the app repo:
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile` | `FROM nginx:alpine`, copy `nginx/default.conf` + static assets |
+| `docker-compose.yml` | Build service `app`, map host port → container port |
+| `nginx/default.conf` | Listen on app port; synthetic `location = /health { return 200 "ok\n"; }` |
+| `.dockerignore` | Keep build context small (exclude `.git/`, dev-only dirs) |
+
+When copying directories into the image, use **separate** `COPY` lines so nginx
+gets the right tree (`css/`, `js/`, …). A single
+`COPY index.html css/ js/ /usr/share/nginx/html/` flattens everything into the
+web root and breaks asset URLs.
+
+Trim the generated k8s manifests for stateless apps:
+
+- Remove `configmap.yaml`, `pvc.yaml`, and `homelab-pvc` overlay from `k8s/base/kustomization.yaml`
+- Drop `envFrom`, volume mounts, and `storage.sessions` from `system.yaml`
+
+**3. Wire edge routing (mlapi.us)**
+
+System repo (created by `app-init`, edit as needed):
+
+- `apps/myapp.yaml` — `repo: ~/git/myapp`
+- `nginx/apps/mlapi.us/myapp.conf` — proxy `/myapp/` → upstream (trailing slash strips prefix)
+- `nginx/upstreams/myapp.conf` — `upstream host196_myapp_api { server 127.0.0.1:PORT; }`
+
+Example location block:
+
+```nginx
+location = /myapp { return 301 /myapp/; }
+location /myapp/health { proxy_pass http://host196_myapp_api/health; ... }
+location /myapp/ { proxy_pass http://host196_myapp_api/; ... }
+```
+
+**4. Deploy and install nginx**
+
+```bash
+make app-validate APP=myapp
+make app-deploy APP=myapp
+# If deploy warns about sudo:
+sudo scripts/install-nginx-app.sh myapp
+```
+
+**5. Fleet Cockpit (Managed Apps table)**
+
+Cockpit reads every `apps/*.yaml` and exports namespace/deployment from each
+repo's `system.yaml`. After registering a new app, refresh the UI:
+
+```bash
+make cockpit
+```
+
+The app appears under **MANAGED APPS** with a **DEPLOY** button (SSH deploy on
+the controller).
+
+**6. Verify**
+
+```bash
+make app-verify APP=myapp
+curl -s https://mlapi.us/myapp/health -H 'User-Agent: verify/1'
+```
+
+Edge checks need a `User-Agent` header — Cloudflare Bot Fight Mode returns 403
+to bare Python `urllib` requests (the deploy script sets one automatically).
+
+| App | Repo | URL | Port |
+|-----|------|-----|------|
+| noggin | `~/git/noggin` | `https://mlapi.us/noggin/` | 31019 |
+| cardcam | `~/git/cardcam` | `https://mlapi.us/cardcam/` | 31020 |
+| arcade | `~/git/arcade` | `https://mlapi.us/arcade/` | 31021 |
+| plateforge | `~/git/electroplating` | `https://mlapi.us/plateforge/` | 8116 |
+
+Large binary assets (e.g. cardcam ONNX weights) can stay gitignored and be
+fetched at **build time** in the Dockerfile from HuggingFace or another URL.
+
 
 ### App repo files
 
@@ -415,4 +509,7 @@ make app-deploy APP=plateforge
 | `ImagePullBackOff` on worker | Image not imported — check `import_nodes` label matches a node; re-run deploy |
 | `No nodes match homelab/cpu-tier=cheap` | Run `make label-gpus` or fix `import_nodes` in system.yaml |
 | Verify fails after deploy | Check mlapi.us nginx upstream; run `sync-nginx-upstream.sh` |
+| Edge verify returns 403 | Cloudflare blocks requests without User-Agent — use `make app-verify` (fixed) or curl with `-H 'User-Agent: …'` |
+| 502 right after deploy | Pod may still be rolling out or on a stale image — `kubectl rollout restart -n <ns> deploy/<name>` |
+| CSS/JS 404, HTML OK | Docker `COPY` flattened dirs — use separate `COPY css/ …/css/` lines; rebuild with `--no-cache` |
 | Nginx install skipped | Run `sudo scripts/install-nginx-app.sh <app>` manually |
