@@ -134,6 +134,7 @@ to bare Python `urllib` requests (the deploy script sets one automatically).
 | noggin | `~/git/noggin` | `https://mlapi.us/noggin/` | 31019 |
 | cardcam | `~/git/cardcam` | `https://mlapi.us/cardcam/` | 31020 |
 | arcade | `~/git/arcade` | `https://mlapi.us/arcade/` | 31021 |
+| glorp | `~/git/glorp` | `https://mlapi.us/glorp/` | 31017 |
 | plateforge | `~/git/electroplating` | `https://mlapi.us/plateforge/` | 8116 |
 
 Large binary assets (e.g. cardcam ONNX weights) can stay gitignored and be
