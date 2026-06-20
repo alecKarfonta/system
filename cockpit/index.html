@@ -218,6 +218,8 @@ button:disabled{opacity:.4;cursor:default}
 .drain .dmsg{font-size:9.5px;color:var(--dim);margin-top:2px}
 
 table{width:100%;border-collapse:collapse;font-size:12px}
+.apps-table td:nth-child(n+4):nth-child(-n+7){font-size:11px;color:var(--dim)}
+.apps-table td:nth-child(4){color:var(--ink)}
 th{font-family:var(--disp);font-size:9.5px;letter-spacing:.26em;color:var(--dim);text-align:left;
   padding:8px 10px;border-bottom:1px solid var(--line)}
 td{padding:8px 10px;border-bottom:1px solid #122019}
@@ -356,9 +358,9 @@ tr:hover td{background:var(--phos-soft)}
 </div>
 
 <div class="sec">MANAGED APPS</div>
-<table>
-  <thead><tr><th>APP</th><th>NAMESPACE</th><th>STATUS</th><th></th></tr></thead>
-  <tbody id="apps"><tr><td colspan="4" style="color:var(--dim)">loading…</td></tr></tbody>
+<table class="apps-table">
+  <thead><tr><th>APP</th><th>NAMESPACE</th><th>STATUS</th><th>POD</th><th>IP</th><th>NODE</th><th>AGE</th><th></th></tr></thead>
+  <tbody id="apps"><tr><td colspan="8" style="color:var(--dim)">loading…</td></tr></tbody>
 </table>
 
 <div class="sec">WORKLOADS</div>
@@ -1001,13 +1003,17 @@ async function loadApps(){
     const d=await api("/api/apps");
     renderApps(d.apps||[]);
   }catch(e){
-    $("#apps").innerHTML=`<tr><td colspan="4" style="color:var(--dim)">could not load apps — ${e.message}</td></tr>`;
+    $("#apps").innerHTML=`<tr><td colspan="8" style="color:var(--dim)">could not load apps — ${e.message}</td></tr>`;
   }
+}
+function appPodField(pods, field){
+  if(!pods?.length) return "—";
+  return pods.map(p=>p[field]||"—").join("<br>");
 }
 function renderApps(apps){
   const tbody=$("#apps");
   if(!apps.length){
-    tbody.innerHTML=`<tr><td colspan="4" style="color:var(--dim)">no registered apps — add apps/*.yaml and re-run make cockpit</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="8" style="color:var(--dim)">no registered apps — add apps/*.yaml and re-run make cockpit</td></tr>`;
     return;
   }
   tbody.innerHTML=apps.map(a=>{
@@ -1016,8 +1022,13 @@ function renderApps(apps){
       a.phase==="running"?`<span class="badge tier inference">RUNNING</span> ${a.ready}`:
       a.phase==="not_deployed"?`<span class="badge warn">NOT DEPLOYED</span>`:
       `<span class="badge warn">${(a.phase||"?").toUpperCase()}</span> ${a.ready||""}`;
+    const pods=a.pods||[];
     return `<tr><td><b>${a.name}</b><div style="color:var(--dim);font-size:11px">${a.repo||""}</div></td>
       <td>${a.namespace||"—"}</td><td>${status}</td>
+      <td>${appPodField(pods,"name")}</td>
+      <td>${appPodField(pods,"ip")}</td>
+      <td>${appPodField(pods,"node")}</td>
+      <td>${appPodField(pods,"age")}</td>
       <td><button onclick="deployApp('${a.name}')" ${job?"disabled":""}>DEPLOY</button></td></tr>`;
   }).join("");
 }

@@ -1847,19 +1847,67 @@ def _managed_apps_registry():
     except Exception:
         return []
 
+def _format_pod_age(ts):
+    """Human-readable age from an ISO8601 timestamp."""
+    if not ts:
+        return "—"
+    try:
+        from datetime import datetime, timezone
+        start = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        secs = int((datetime.now(timezone.utc) - start).total_seconds())
+        if secs < 60:
+            return f"{secs}s"
+        if secs < 3600:
+            return f"{secs // 60}m"
+        if secs < 86400:
+            return f"{secs // 3600}h"
+        return f"{secs // 86400}d"
+    except Exception:
+        return "—"
+
+def _app_pods(ns, dep_obj):
+    """Pods owned by a managed-app deployment (via its label selector)."""
+    if not ns or not dep_obj:
+        return []
+    sel = dep_obj.get("spec", {}).get("selector", {}).get("matchLabels") or {}
+    if not sel:
+        return []
+    label_selector = urllib.parse.quote(",".join(f"{k}={v}" for k, v in sel.items()))
+    try:
+        items = k8s("GET", f"/api/v1/namespaces/{ns}/pods?labelSelector={label_selector}")["items"]
+    except Exception:
+        return []
+    pods = []
+    for p in sorted(items, key=lambda x: x["metadata"]["name"]):
+        st = p.get("status") or {}
+        containers = p.get("spec", {}).get("containers") or []
+        ready = sum(1 for cs in (st.get("containerStatuses") or []) if cs.get("ready"))
+        pods.append({
+            "name": p["metadata"]["name"],
+            "ip": st.get("podIP") or "—",
+            "node": (p.get("spec") or {}).get("nodeName") or "—",
+            "phase": st.get("phase") or "?",
+            "ready": f"{ready}/{len(containers) or 1}",
+            "age": _format_pod_age(st.get("startTime") or p["metadata"].get("creationTimestamp")),
+        })
+    return pods
+
 def _app_cluster_status(entry):
     ns = entry.get("namespace") or ""
     dep = entry.get("deployment") or ""
-    empty = {"ready": "—", "phase": "unknown", "replicas": 0, "updated": 0}
+    empty = {"ready": "—", "phase": "unknown", "replicas": 0, "updated": 0, "pods": []}
     if not ns or not dep:
         return empty
     if DEMO:
-        return {"ready": "1/1", "phase": "running", "replicas": 1, "updated": 1}
+        app = entry.get("name") or "app"
+        return {"ready": "1/1", "phase": "running", "replicas": 1, "updated": 1,
+                "pods": [{"name": f"{app}-demo-0", "ip": "10.42.0.42", "node": "trx40-beast",
+                          "phase": "Running", "ready": "1/1", "age": "2h"}]}
     try:
         d = k8s("GET", f"/apis/apps/v1/namespaces/{ns}/deployments/{dep}")
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            return {"ready": "0/0", "phase": "not_deployed", "replicas": 0, "updated": 0}
+            return {"ready": "0/0", "phase": "not_deployed", "replicas": 0, "updated": 0, "pods": []}
         return empty
     except Exception:
         return empty
@@ -1875,7 +1923,7 @@ def _app_cluster_status(entry):
     else:
         phase = "missing"
     return {"ready": f"{ready}/{desired}", "phase": phase,
-            "replicas": ready, "updated": updated}
+            "replicas": ready, "updated": updated, "pods": _app_pods(ns, d)}
 
 APP_JOBS, _APJLOCK = {}, threading.Lock()
 
