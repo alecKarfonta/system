@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # install-nvidia-driver.sh — install the host NVIDIA driver (consumer-GPU path).
 # Used locally (make install-driver), via SSH (make install-driver-node), and
-# from Fleet Cockpit remote driver jobs.
+# from Fleet Command remote driver jobs.
 #
 # Exit codes:
 #   0 — driver working (nvidia-smi OK)

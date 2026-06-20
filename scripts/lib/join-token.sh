@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# join-token.sh — fetch the k3s cluster join token for Cockpit / add-node flows.
+# join-token.sh — fetch the k3s cluster join token for Fleet Command / add-node flows.
 # Tries local file, cluster.env JOIN_TOKEN, SSH to SERVER_HOST, then a one-shot
 # pod on the control-plane node (works from a laptop with kubeconfig only).
 

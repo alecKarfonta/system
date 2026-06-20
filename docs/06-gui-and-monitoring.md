@@ -5,11 +5,11 @@ third-party platform; both install with the stack.
 
 | Tool            | What it's for                                   | Open with |
 |-----------------|-------------------------------------------------|-----------|
-| **Fleet Cockpit** | GPU fleet view: allocation, live telemetry, scale/cordon/drain/tier | `make cockpit-ui` or `http://<node-ip>:30880` |
+| **Fleet Command** | GPU fleet view: allocation, live telemetry, scale/cordon/drain/tier | `make cockpit-ui` or `http://<node-ip>:30880` |
 | **Headlamp**    | Manage the cluster: nodes, workloads, scale, edit, logs, shell, RBAC | `make ui` |
 | **Grafana**     | Monitor: per-GPU utilization/memory/temp/power, cluster metrics | port-forward (below) |
 
-See `docs/07-cli-and-cockpit.md` for Fleet Cockpit details.
+See `docs/07-cli-and-cockpit.md` for Fleet Command details.
 
 ## Headlamp — the cluster control panel
 
@@ -62,13 +62,13 @@ see `manifests/monitoring/dcgm-dashboard-note.md`.
 
 ## What about a single "GPU allocation" UI?
 
-**Fleet Cockpit** (`make cockpit`) is the homelab answer: a ~400-line app you own that
+**Fleet Command** (`make cockpit`) is the homelab answer: a ~400-line app you own that
 shows per-GPU allocation, live DCGM telemetry, and the 90% day-to-day actions (scale,
 cordon, PDB-respecting drain, re-tier). Preview it before the cluster exists with
 `make cockpit-demo`.
 
 For the full picture:
-- **Fleet Cockpit** — fleet at a glance + common GPU ops.
+- **Fleet Command** — fleet at a glance + common GPU ops.
 - **Headlamp** — deep generic k8s management.
 - **Grafana + DCGM** — utilization/temperature/power over time.
 - Your **tier labels / DRA DeviceClasses** — control *where* work lands.

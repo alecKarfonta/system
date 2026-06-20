@@ -107,9 +107,9 @@ make app-deploy APP=myapp
 sudo scripts/install-nginx-app.sh myapp
 ```
 
-**5. Fleet Cockpit (Managed Apps table)**
+**5. Fleet Command (Managed Apps table)**
 
-Cockpit reads every `apps/*.yaml` and exports namespace/deployment from each
+Fleet Command reads every `apps/*.yaml` and exports namespace/deployment from each
 repo's `system.yaml`. After registering a new app, refresh the UI:
 
 ```bash

@@ -1,4 +1,4 @@
-# Fleet Cockpit — the homelab's GPU-centric management GUI.
+# Fleet Command — the homelab's GPU-centric management GUI.
 # The app code lives in cockpit/{app.py,index.html}; scripts/cockpit.sh packs them
 # into the ConfigMap referenced below, then applies this file.
 apiVersion: v1
@@ -122,12 +122,16 @@ spec:
             - name: ssh
               mountPath: /var/run/secrets/ssh
               readOnly: true
+          startupProbe:
+            httpGet: { path: /healthz, port: 8090 }
+            periodSeconds: 5
+            failureThreshold: 24
           readinessProbe:
             httpGet: { path: /healthz, port: 8090 }
-            initialDelaySeconds: 2
+            periodSeconds: 5
           resources:
-            requests: { cpu: 25m, memory: 64Mi }
-            limits:   { cpu: 200m, memory: 128Mi }
+            requests: { cpu: 25m, memory: 128Mi }
+            limits:   { cpu: 200m, memory: 256Mi }
       volumes:
         - name: code
           configMap:

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FLEET COCKPIT</title>
+<title>FLEET COMMAND</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -285,7 +285,7 @@ tr:hover td{background:var(--phos-soft)}
 </head>
 <body>
 <header>
-  <div><h1>FLEET COCKPIT<small>HOMELAB GPU CLUSTER · CONTROL DECK</small></h1></div>
+  <div><h1>FLEET COMMAND<small>HOMELAB GPU CLUSTER · CONTROL DECK</small></h1></div>
   <div class="stats">
     <div class="stat"><b id="s-nodes">—</b><span>NODES</span></div>
     <div class="stat"><b id="s-ctl">—</b><span>CONTROL PLANES</span></div>
@@ -331,7 +331,7 @@ tr:hover td{background:var(--phos-soft)}
     </div>
   </div>
   <div class="add-panel" id="tab-ssh">
-    <div class="add-hint" id="ssh-hint">Cockpit SSHes in, installs k3s, and auto-labels GPUs. Target user needs passwordless sudo.</div>
+    <div class="add-hint" id="ssh-hint">Fleet Command SSHes in, installs k3s, and auto-labels GPUs. Target user needs passwordless sudo.</div>
     <div class="add-form">
       <label>HOST / IP<input id="ssh-host" placeholder="192.168.1.50"></label>
       <label>SSH USER<input id="ssh-user" value="alec" placeholder="alec"></label>
@@ -970,7 +970,7 @@ function toggleSshAuth(){
   $("#ssh-key-opt").style.display=pw?"none":"flex";
   $("#ssh-key-wrap").style.display=pw?"none":($("#ssh-use-saved").checked?"none":"grid");
   $("#ssh-hint").textContent=pw?
-    "Log in with username + password. Cockpit uses it for SSH and sudo — not saved.":
+    "Log in with username + password. Fleet Command uses it for SSH and sudo — not saved.":
     ($("#ssh-use-saved").checked&&joinData.ssh_key_available?
       "Cluster SSH key loaded (from make cockpit).":
       "Paste a private key or run make cockpit to save your cluster key.");

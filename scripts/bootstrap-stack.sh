@@ -87,7 +87,7 @@ if [[ "${INSTALL_DASHBOARD:-0}" == "1" ]]; then
   "${REPO_ROOT}/scripts/dashboard.sh" install
 fi
 
-# --- Fleet Cockpit (GPU-centric management GUI) ------------------------------
+# --- Fleet Command (GPU-centric management GUI) ------------------------------
 if [[ "${INSTALL_COCKPIT:-0}" == "1" ]]; then
   "${REPO_ROOT}/scripts/cockpit.sh" install
 fi

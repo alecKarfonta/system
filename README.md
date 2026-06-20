@@ -9,9 +9,9 @@ touch raw `kubectl`.
 > Kubernetes administrator* to run a homelab.
 
 <p align="center">
-  <img src="docs/main_ui.png" alt="Fleet Cockpit — cluster overview and per-GPU fleet view" width="900">
+  <img src="docs/main_ui.png" alt="Fleet Command — cluster overview and per-GPU fleet view" width="900">
   <br>
-  <em>Fleet Cockpit: cluster health, fleet-wide usage, and one card per GPU.</em>
+  <em>Fleet Command: cluster health, fleet-wide usage, and one card per GPU.</em>
 </p>
 
 ## What you get
@@ -21,13 +21,13 @@ touch raw `kubectl`.
 | **Add a machine** | `make add-node` prints a one-liner; paste it on the new box. Drivers install, GPUs show up. |
 | **Remove safely** | `make remove-node NODE=x` drains workloads first, then drops the node. |
 | **Target hardware** | Tag GPUs by tier (`training`, `inference`, …) or VRAM/compute cap — not hostnames. |
-| **Fleet Cockpit** | Custom GPU-centric GUI: cluster overview, per-GPU telemetry, scale/cordon/drain/re-tier. |
+| **Fleet Command** | Custom GPU-centric GUI: cluster overview, per-GPU telemetry, scale/cordon/drain/re-tier. |
 | **`homelab` CLI** | Probes GPUs at join time (`nvidia-smi`), auto-labels VRAM, compute cap, tier. |
 | **Batteries** | Longhorn storage, DCGM → Grafana, Headlamp for deep k8s, works over Tailscale. |
 | **App deploys** | Register app repos, scaffold new services, deploy to k3s + mlapi.us from one contract. |
 
 <p align="center">
-  <img src="docs/nodes.png" alt="Fleet Cockpit — node allocation and telemetry" width="900">
+  <img src="docs/nodes.png" alt="Fleet Command — node allocation and telemetry" width="900">
   <br>
   <em>Node cards with allocation meters, live DCGM telemetry, and drain/cordon controls.</em>
 </p>
@@ -46,7 +46,7 @@ make kubeconfig
 make stack                  # GPU Operator + DRA + storage + monitoring + GUIs
 make label-gpus
 make status
-make cockpit-ui             # Fleet Cockpit → http://<node-ip>:30880
+make cockpit-ui             # Fleet Command → http://<node-ip>:30880
 ```
 
 Add a GPU worker:
@@ -64,7 +64,7 @@ Send work to your big GPUs:
 kubectl apply -f manifests/examples/02-training-job-nodeselector.yaml
 ```
 
-## Fleet Cockpit
+## Fleet Command
 
 The GUI you actually want for day-to-day GPU ops — not another generic k8s dashboard.
 
@@ -141,7 +141,7 @@ Full guide: [`docs/09-app-deploys.md`](docs/09-app-deploys.md)
 ```
 apps/        registered app repos (apps/<name>.yaml → system.yaml contract)
 cli/         homelab CLI (discover, join, status) — make cli
-cockpit/     Fleet Cockpit source (Python + vanilla JS, no build step)
+cockpit/     Fleet Command source (Python + vanilla JS, no build step)
 config/      cluster.env — the ONE file you edit
 schema/      system.yaml.example — copy to app repos
 scripts/     install, join, remove, label, stack, cockpit, deploy-app
@@ -160,7 +160,7 @@ Makefile     friendly command menu — make help
 | GPU targeting | [`docs/03-gpu-targeting.md`](docs/03-gpu-targeting.md) |
 | Managing nodes | [`docs/04-managing-nodes.md`](docs/04-managing-nodes.md) |
 | GUIs & monitoring | [`docs/06-gui-and-monitoring.md`](docs/06-gui-and-monitoring.md) |
-| CLI & Fleet Cockpit | [`docs/07-cli-and-cockpit.md`](docs/07-cli-and-cockpit.md) |
+| CLI & Fleet Command | [`docs/07-cli-and-cockpit.md`](docs/07-cli-and-cockpit.md) |
 | Troubleshooting | [`docs/05-troubleshooting.md`](docs/05-troubleshooting.md) |
 | Container registry | [`docs/08-container-registry.md`](docs/08-container-registry.md) |
 | App deploys | [`docs/09-app-deploys.md`](docs/09-app-deploys.md) |

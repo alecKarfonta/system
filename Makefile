@@ -153,10 +153,10 @@ dashboard: ## Install Headlamp, a web GUI for the cluster (run once)
 ui: ## Open the Headlamp web GUI + print your login token
 	@$(S)/dashboard.sh open
 
-cockpit: ## Install/update the Fleet Cockpit (GPU-centric management GUI)
+cockpit: ## Install/update the Fleet Command (GPU-centric management GUI)
 	@$(S)/cockpit.sh install
 
-cockpit-ui: ## Open the Fleet Cockpit
+cockpit-ui: ## Open the Fleet Command
 	@$(S)/cockpit.sh open
 
 cockpit-demo: ## Preview the Cockpit locally with fake data

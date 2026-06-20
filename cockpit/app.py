@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fleet Cockpit backend — dependency-free web app for managing the homelab GPU
+"""Fleet Command backend — dependency-free web app for managing the homelab GPU
 cluster. Talks to the Kubernetes API with the pod's ServiceAccount and scrapes
 DCGM exporters directly for live per-GPU telemetry (util/temp/VRAM/power).
 Set HOMELAB_DEMO=1 to run locally with animated fake data."""
@@ -28,6 +28,25 @@ def _cni_post_join_sh():
 chmod 755 /usr/local/bin/k3s-cni-sync.sh
 CNI_SYNC_TIMEOUT=120 /usr/local/bin/k3s-cni-sync.sh post-join"""
     return "echo 'warn: k3s-cni-sync.sh missing — CNI may need manual fix' >&2"
+
+def _ensure_curl_sh():
+    """Install curl on a remote join target when missing (runs as root via sudo)."""
+    return """if ! command -v curl >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq || apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl ca-certificates
+  elif command -v dnf >/dev/null 2>&1; then
+    dnf install -y curl ca-certificates
+  elif command -v yum >/dev/null 2>&1; then
+    yum install -y curl ca-certificates
+  elif command -v apk >/dev/null 2>&1; then
+    apk add --no-cache curl ca-certificates
+  else
+    echo "curl not found and no supported package manager (apt/dnf/yum/apk)" >&2
+    exit 1
+  fi
+fi
+command -v curl >/dev/null 2>&1 || { echo "curl still missing after install attempt" >&2; exit 1; }"""
 
 # ----------------------------------------------------------------- k8s client
 def k8s(method, path, body=None, content_type="application/json"):
@@ -1085,7 +1104,7 @@ def _driver_install_script():
     p = Path(__file__).parent / "install-nvidia-driver.sh"
     if p.is_file():
         return p.read_text()
-    raise RuntimeError("install-nvidia-driver.sh missing from Cockpit bundle")
+    raise RuntimeError("install-nvidia-driver.sh missing from Fleet Command bundle")
 
 def _driver_env_shell(cfg):
     pkg = cfg["package"].replace("'", "'\\''")
@@ -1527,6 +1546,7 @@ sleep 2
     return f"""#!/bin/bash
 set -euo pipefail
 {reinstall_sh}
+{_ensure_curl_sh()}
 tier_for() {{
   local p="${{1,,}}"
   [[ "$p" == *h100* || "$p" == *a100* ]] && echo datacenter && return
@@ -2076,5 +2096,5 @@ class H(BaseHTTPRequestHandler):
             self._send(400, {"error": str(e)})
 
 if __name__ == "__main__":
-    print(f"Fleet Cockpit on :{PORT}  [{'DEMO (fake data)' if DEMO else 'live cluster'}]", flush=True)
+    print(f"Fleet Command on :{PORT}  [{'DEMO (fake data)' if DEMO else 'live cluster'}]", flush=True)
     ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cockpit.sh - install/open/demo the Fleet Cockpit GUI.
+# cockpit.sh - install/open/demo the Fleet Command GUI.
 #   make cockpit       -> install/update it in the cluster
 #   make cockpit-ui    -> open via port-forward (also reachable at :30880 on any node)
 #   make cockpit-demo  -> run locally with fake data to preview the UI
@@ -12,7 +12,7 @@ case "$ACTION" in
   install)
     require_cluster
     [[ -f "${REPO_ROOT}/config/cluster.env" ]] && load_env "${REPO_ROOT}/config/cluster.env"
-    title "Installing Fleet Cockpit"
+    title "Installing Fleet Command"
     kc create namespace cockpit --dry-run=client -o yaml | kc apply -f - >/dev/null
     APPS_JSON="$(python3 <<PY
 import json, subprocess, sys
@@ -64,7 +64,7 @@ PY
           --from-literal=nvidia_driver_flavor="${NVIDIA_DRIVER_FLAVOR:-open}" \
           --from-literal=system_root="${REPO_ROOT}" \
           --dry-run=client -o yaml | kc apply -f - >/dev/null
-      ok "Join secret created (Add Node enabled in Cockpit)."
+      ok "Join secret created (Add Node enabled in Fleet Command)."
     else
       warn "Could not fetch k3s join token."
       echo "  Fix: set JOIN_TOKEN in config/cluster.env (from 'make add-node' on sonic), then re-run make cockpit"
@@ -82,13 +82,13 @@ PY
           --dry-run=client -o yaml | kc apply -f - >/dev/null
       ok "SSH key saved for remote Add Node (from ${SSH_KEY})."
     else
-      warn "No SSH key found — paste a key in Cockpit or set COCKPIT_SSH_KEY in cluster.env."
+      warn "No SSH key found — paste a key in Fleet Command or set COCKPIT_SSH_KEY in cluster.env."
     fi
     kc apply -f "${REPO_ROOT}/manifests/cockpit/cockpit.yaml" >/dev/null
     kc -n cockpit rollout restart deploy/cockpit >/dev/null 2>&1 || true
     kc -n cockpit rollout status deploy/cockpit --timeout=120s >/dev/null 2>&1 || \
-      warn "Cockpit rollout slow — if UI looks stale, run: kubectl -n cockpit delete pod -l app=cockpit"
-    ok "Cockpit deployed."
+      warn "Fleet Command rollout slow — if UI looks stale, run: kubectl -n cockpit delete pod -l app=cockpit"
+    ok "Fleet Command deployed."
     echo "Open it:   make cockpit-ui"
     echo "Or browse: http://<any-node-ip>:30880   (stable LAN URL, no port-forward needed)"
     ;;
@@ -101,7 +101,7 @@ PY
     kc -n cockpit port-forward svc/cockpit "${PORT}:80"
     ;;
   demo)
-    title "Fleet Cockpit — local demo with fake data (Ctrl-C to stop)"
+    title "Fleet Command — local demo with fake data (Ctrl-C to stop)"
     HOMELAB_DEMO=1 PORT="${PORT}" python3 "${REPO_ROOT}/cockpit/app.py"
     ;;
   *) die "Usage: cockpit.sh [install|open|demo]" ;;

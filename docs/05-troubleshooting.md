@@ -43,9 +43,9 @@ this is the most likely place to need a tweak. **Node-label targeting always wor
 - Clock skew breaks TLS: `sudo timedatectl set-ntp true` on both ends.
 - Behind CGNAT and not using Tailscale? The worker can't reach the server. Enable Tailscale.
 
-## Longhorn storage missing on a node (Cockpit shows "Ephemeral budget" instead of LONGHORN)
+## Longhorn storage missing on a node (Fleet Command shows "Ephemeral budget" instead of LONGHORN)
 
-Fleet Cockpit shows per-node **LONGHORN** stats only when Longhorn manager is healthy and a disk
+Fleet Command shows per-node **LONGHORN** stats only when Longhorn manager is healthy and a disk
 exists at `/var/lib/longhorn/`. If a new node shows only **Ephemeral budget**, check:
 
 1. **Longhorn manager on that node:**

@@ -1,4 +1,4 @@
-# 07 · The `homelab` CLI & Fleet Cockpit GUI
+# 07 · The `homelab` CLI & Fleet Command GUI
 
 These two are the polished interfaces on top of everything else in this repo.
 
@@ -77,7 +77,7 @@ homelab app deploy plateforge                 # same via CLI
 Deploy runs: docker compose build → k3s image import → kustomize apply → rollout wait
 → HTTP verify checks → nginx upstream sync (mlapi.us).
 
-## Fleet Cockpit — the GPU-centric management GUI
+## Fleet Command — the GPU-centric management GUI
 
 `make cockpit` deploys it; it runs *inside* the cluster (tiny: one pod, ~64Mi).
 Reach it at **`http://<any-node-ip>:30880`** from anywhere on your LAN/tailnet —
@@ -110,7 +110,7 @@ What you can DO from it:
   object; do that with `homelab remove` when the box is really leaving.
 - **Reassign GPU and CPU tiers** from dropdowns on each node card — re-routes future scheduling instantly.
 
-Mutations are deliberately scoped: the Cockpit's RBAC can only read nodes/pods/deployments,
+Mutations are deliberately scoped: Fleet Command's RBAC can only read nodes/pods/deployments,
 patch node schedulability + `gpu.homelab/*` / `homelab/cpu-tier` labels, and scale deployments. It cannot
 delete things or read secrets — so exposing it on your LAN is low-risk. (Still keep
 it off the public internet.)
@@ -120,7 +120,7 @@ on http://localhost:8090 with realistic fake data.
 
 ### How it relates to Headlamp & Grafana
 
-- **Cockpit** = your fleet at a glance + the 90% actions (scale, cordon, tier).
+- **Fleet Command** = your fleet at a glance + the 90% actions (scale, cordon, tier).
 - **Headlamp** = deep generic k8s management (YAML editing, logs, exec, events).
 - **Grafana** = GPU utilization/temperature/power over time.
 
